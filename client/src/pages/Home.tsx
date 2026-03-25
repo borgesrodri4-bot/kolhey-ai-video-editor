@@ -1,6 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { KolheyLogo, KolheyWordmark } from "@/components/KolheyLogo";
+import { KolheyHero, KolheyWordmark } from "@/components/KolheyLogo";
 import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import {
@@ -109,11 +109,11 @@ export default function Home() {
 
         <div className="relative max-w-4xl mx-auto">
           {/*
-            Logo hero: tamanho XL, com tagline — completamente integrada ao layout,
-            não é uma imagem sobreposta mas sim o próprio elemento tipográfico da marca.
+            Logo hero: versão completa com tagline e onça decorativa à direita,
+            fiel ao modelo original da Kolhey.
           */}
           <div className="flex flex-col items-center mb-10">
-            <KolheyLogo size="xl" showTagline variant="light" />
+            <KolheyHero size="xl" variant="light" />
           </div>
 
           <h1

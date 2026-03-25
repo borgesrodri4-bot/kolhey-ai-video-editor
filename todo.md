@@ -86,3 +86,8 @@
 - [x] Integrar logo no sidebar do dashboard como marca principal
 - [x] Integrar logo nos headers de Upload, ProjectDetail e AdaptiveProfile
 - [x] Remover uso da imagem JPG sobreposta em todas as páginas
+
+## Ajuste da Logo e Onça
+- [ ] Corrigir posicionamento e proporção do círculo laranja no O
+- [ ] Adicionar onça SVG como elemento decorativo no hero (igual ao modelo)
+- [ ] Adicionar onça sutil no sidebar do dashboard

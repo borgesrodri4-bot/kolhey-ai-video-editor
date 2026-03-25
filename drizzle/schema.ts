@@ -1,17 +1,16 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  float,
+  json,
+} from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +24,87 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+// ─── Video Projects ────────────────────────────────────────────────────────────
+export const videoProjects = mysqlTable("video_projects", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  status: mysqlEnum("status", [
+    "pending",
+    "uploading",
+    "processing",
+    "completed",
+    "failed",
+  ])
+    .default("pending")
+    .notNull(),
+  // S3 metadata only — no file bytes in DB
+  originalVideoUrl: text("originalVideoUrl"),
+  originalVideoKey: varchar("originalVideoKey", { length: 512 }),
+  audioUrl: text("audioUrl"),
+  audioKey: varchar("audioKey", { length: 512 }),
+  fileSizeBytes: int("fileSizeBytes"),
+  durationSeconds: float("durationSeconds"),
+  // Processing progress (0–100)
+  progress: int("progress").default(0).notNull(),
+  currentStep: varchar("currentStep", { length: 128 }),
+  errorMessage: text("errorMessage"),
+  scenesCount: int("scenesCount").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VideoProject = typeof videoProjects.$inferSelect;
+export type InsertVideoProject = typeof videoProjects.$inferInsert;
+
+// ─── Video Scenes ──────────────────────────────────────────────────────────────
+export const videoScenes = mysqlTable("video_scenes", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  sceneOrder: int("sceneOrder").notNull(),
+  startTime: float("startTime").notNull(),
+  endTime: float("endTime").notNull(),
+  transcript: text("transcript").notNull(),
+  illustrationPrompt: text("illustrationPrompt"),
+  // S3 metadata only
+  illustrationUrl: text("illustrationUrl"),
+  illustrationKey: varchar("illustrationKey", { length: 512 }),
+  illustrationStatus: mysqlEnum("illustrationStatus", [
+    "pending",
+    "generating",
+    "completed",
+    "failed",
+  ])
+    .default("pending")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type VideoScene = typeof videoScenes.$inferSelect;
+export type InsertVideoScene = typeof videoScenes.$inferInsert;
+
+// ─── Processing Jobs ───────────────────────────────────────────────────────────
+export const processingJobs = mysqlTable("processing_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  step: mysqlEnum("step", [
+    "audio_extraction",
+    "transcription",
+    "scene_analysis",
+    "image_generation",
+    "completed",
+  ]).notNull(),
+  status: mysqlEnum("status", ["pending", "running", "completed", "failed"])
+    .default("pending")
+    .notNull(),
+  progress: int("progress").default(0).notNull(),
+  errorMessage: text("errorMessage"),
+  metadata: json("metadata"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProcessingJob = typeof processingJobs.$inferSelect;
+export type InsertProcessingJob = typeof processingJobs.$inferInsert;

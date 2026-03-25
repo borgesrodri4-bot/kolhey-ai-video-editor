@@ -7,6 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { storagePut } from "../storage";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -35,6 +36,23 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // ── Rota de upload de vídeo (recebe binário e salva no S3) ──────────────────
+  app.post("/api/upload-video", express.raw({ type: "*/*", limit: "520mb" }), async (req, res) => {
+    try {
+      const key = req.query.key as string;
+      if (!key) { res.status(400).json({ error: "Missing key parameter" }); return; }
+      const contentType = (req.headers["content-type"] as string) ?? "video/mp4";
+      const buffer = req.body as Buffer;
+      if (!buffer || buffer.length === 0) { res.status(400).json({ error: "Empty file body" }); return; }
+      const { url } = await storagePut(key, buffer, contentType);
+      res.json({ url, key });
+    } catch (err) {
+      console.error("[Upload] Error:", err);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

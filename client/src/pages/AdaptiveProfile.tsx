@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { KolheyWordmark } from "@/components/KolheyLogo";
 import {
   Brain,
   Sparkles,
@@ -144,6 +145,9 @@ export default function AdaptiveProfile() {
       {/* Header */}
       <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
+          {/* Logo integrada — SVG inline, elemento estrutural do header */}
+          <KolheyWordmark size="sm" variant="light" />
+          <Separator orientation="vertical" className="h-5 bg-white/20" />
           <Link href="/dashboard">
             <Button variant="ghost" size="sm" className="text-white/60 hover:text-white gap-2">
               <ChevronLeft className="w-4 h-4" />

@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { KolheyWordmark } from "@/components/KolheyLogo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
@@ -20,8 +21,6 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-
-const KOLHEY_LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663468388409/gwVBgn9SLQhabuuxC5oTDT/kolhey-logo_46813286.jpeg";
 
 type VideoProject = {
   id: number;
@@ -153,13 +152,9 @@ export default function Dashboard() {
     <div className="min-h-screen bg-background flex">
       {/* Sidebar Kolhey */}
       <aside className="w-64 border-r border-border bg-sidebar flex flex-col flex-shrink-0">
-        {/* Logo */}
-        <div className="p-5 border-b border-border">
-          <img
-            src={KOLHEY_LOGO}
-            alt="Kolhey"
-            className="h-10 w-auto rounded object-contain"
-          />
+        {/* Logo integrada — SVG inline, parte estrutural do sidebar */}
+        <div className="px-5 py-4 border-b border-border flex items-center">
+          <KolheyWordmark size="sm" variant="light" />
         </div>
 
         <nav className="flex-1 p-4 space-y-1">

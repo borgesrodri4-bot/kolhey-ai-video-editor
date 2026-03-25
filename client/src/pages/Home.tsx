@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { KolheyLogo, KolheyWordmark } from "@/components/KolheyLogo";
 import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import {
@@ -11,8 +12,6 @@ import {
   ImageIcon,
   Zap,
 } from "lucide-react";
-
-const KOLHEY_LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663468388409/gwVBgn9SLQhabuuxC5oTDT/kolhey-logo_46813286.jpeg";
 
 const features = [
   {
@@ -68,26 +67,29 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
+      {/* ── Header ── */}
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/90 backdrop-blur-md">
         <div className="container flex items-center justify-between h-16">
-          {/* Logo Kolhey */}
-          <div className="flex items-center gap-3">
-            <img
-              src={KOLHEY_LOGO}
-              alt="Kolhey"
-              className="h-9 w-auto rounded object-contain"
-            />
-          </div>
+          {/* Logo integrada — SVG inline, sem imagem sobreposta */}
+          <KolheyWordmark size="sm" variant="light" />
+
           <nav className="flex items-center gap-4">
             {!loading && (
               isAuthenticated ? (
-                <Button onClick={() => navigate("/dashboard")} size="sm" className="bg-primary hover:bg-primary/90">
+                <Button
+                  onClick={() => navigate("/dashboard")}
+                  size="sm"
+                  className="bg-primary hover:bg-primary/90"
+                >
                   Ir para o Dashboard
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </Button>
               ) : (
-                <Button onClick={handleCTA} size="sm" className="bg-primary hover:bg-primary/90">
+                <Button
+                  onClick={handleCTA}
+                  size="sm"
+                  className="bg-primary hover:bg-primary/90"
+                >
                   Começar
                   <ArrowRight className="w-4 h-4 ml-1" />
                 </Button>
@@ -97,35 +99,30 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero */}
+      {/* ── Hero ── */}
       <section className="pt-32 pb-24 px-4 text-center relative overflow-hidden">
-        {/* Background glow — navy + orange */}
+        {/* Background glow */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-0 right-0 w-[700px] h-[700px] rounded-full bg-primary/5 blur-3xl -translate-y-1/3 translate-x-1/4" />
           <div className="absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full bg-primary/5 blur-3xl translate-y-1/3 -translate-x-1/4" />
         </div>
 
         <div className="relative max-w-4xl mx-auto">
-          {/* Kolhey logo grande no hero */}
-          <div className="flex justify-center mb-10">
-            <img
-              src={KOLHEY_LOGO}
-              alt="Kolhey"
-              className="h-20 w-auto rounded-lg object-contain shadow-2xl"
-            />
+          {/*
+            Logo hero: tamanho XL, com tagline — completamente integrada ao layout,
+            não é uma imagem sobreposta mas sim o próprio elemento tipográfico da marca.
+          */}
+          <div className="flex flex-col items-center mb-10">
+            <KolheyLogo size="xl" showTagline variant="light" />
           </div>
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-4 leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h1
+            className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-6 leading-tight"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
             Edite vídeos com{" "}
-            <span className="kolhey-gradient">
-              inteligência artificial
-            </span>
+            <span className="kolhey-gradient">inteligência artificial</span>
           </h1>
-
-          {/* Tagline Kolhey */}
-          <p className="text-primary font-medium text-lg mb-4 tracking-wide italic" style={{ fontFamily: "'Dancing Script', cursive", fontSize: "1.4rem" }}>
-            Resultados que se cultivam
-          </p>
 
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
             Faça upload de um vídeo MP4 e a IA transcreve, analisa, divide em cenas e gera
@@ -145,7 +142,9 @@ export default function Home() {
               size="lg"
               variant="outline"
               className="text-base px-8 h-12 bg-transparent border-border hover:border-primary/50"
-              onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
+              onClick={() =>
+                document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })
+              }
             >
               Ver como funciona
             </Button>
@@ -153,11 +152,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How it works */}
+      {/* ── How it works ── */}
       <section id="how-it-works" className="py-24 px-4 border-t border-border/40">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2
+              className="text-3xl sm:text-4xl font-bold mb-3"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
               Como funciona
             </h2>
             <p className="text-muted-foreground text-lg">
@@ -172,7 +174,10 @@ export default function Home() {
                   <div className="hidden lg:block absolute top-8 left-full w-full h-px bg-gradient-to-r from-border to-transparent z-0" />
                 )}
                 <div className="relative z-10 p-6 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors">
-                  <div className="text-4xl font-bold text-primary/40 mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>
+                  <div
+                    className="text-4xl font-bold text-primary/40 mb-3"
+                    style={{ fontFamily: "'Playfair Display', serif" }}
+                  >
                     {s.step}
                   </div>
                   <h3 className="font-semibold text-lg mb-1">{s.title}</h3>
@@ -184,11 +189,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features */}
+      {/* ── Features ── */}
       <section className="py-24 px-4 bg-card/20">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <h2
+              className="text-3xl sm:text-4xl font-bold mb-3"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
               Funcionalidades
             </h2>
             <p className="text-muted-foreground text-lg">
@@ -213,13 +221,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA final */}
+      {/* ── CTA final ── */}
       <section className="py-24 px-4 text-center relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-primary/5 blur-3xl rounded-full" />
         </div>
         <div className="relative max-w-2xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>
+          <h2
+            className="text-3xl sm:text-4xl font-bold mb-3"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
             Pronto para automatizar sua edição?
           </h2>
           <p className="text-muted-foreground text-lg mb-8">
@@ -236,18 +247,18 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ── Footer ── */}
       <footer className="border-t border-border/40 py-8 px-4">
         <div className="container flex flex-col sm:flex-row items-center justify-between gap-4">
-          <img
-            src={KOLHEY_LOGO}
-            alt="Kolhey"
-            className="h-8 w-auto rounded object-contain opacity-80"
-          />
+          {/* Logo integrada no footer — versão pequena */}
+          <KolheyWordmark size="sm" variant="light" className="opacity-70" />
           <p className="text-muted-foreground text-sm text-center">
             Powered by Claude, OpenAI Whisper e DALL-E
           </p>
-          <p className="text-muted-foreground text-xs italic" style={{ fontFamily: "'Dancing Script', cursive", fontSize: "1rem" }}>
+          <p
+            className="text-muted-foreground/60 text-xs italic"
+            style={{ fontFamily: "'Dancing Script', cursive", fontSize: "1rem" }}
+          >
             Resultados que se cultivam
           </p>
         </div>

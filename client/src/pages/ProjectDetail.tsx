@@ -25,8 +25,7 @@ import {
 } from "lucide-react";
 
 import { toast } from "sonner";
-
-const KOLHEY_LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663468388409/gwVBgn9SLQhabuuxC5oTDT/kolhey-logo_46813286.jpeg";
+import { KolheyWordmark } from "@/components/KolheyLogo";
 
 type Scene = {
   id: number;
@@ -340,7 +339,7 @@ export default function ProjectDetail() {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <img src={KOLHEY_LOGO} alt="Kolhey" className="h-8 w-auto rounded object-contain" />
+            <KolheyWordmark size="sm" variant="light" />
             <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="text-muted-foreground">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Dashboard

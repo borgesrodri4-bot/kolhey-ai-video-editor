@@ -17,8 +17,7 @@ import {
 } from "lucide-react";
 
 import { toast } from "sonner";
-
-const KOLHEY_LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663468388409/gwVBgn9SLQhabuuxC5oTDT/kolhey-logo_46813286.jpeg";
+import { KolheyWordmark } from "@/components/KolheyLogo";
 
 const MAX_SIZE_BYTES = 500 * 1024 * 1024; // 500MB
 const ALLOWED_TYPES = ["video/mp4", "video/quicktime", "video/x-msvideo"];
@@ -160,8 +159,8 @@ export default function Upload() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Dashboard
           </Button>
-          <div className="flex items-center gap-3">
-            <img src={KOLHEY_LOGO} alt="Kolhey" className="h-8 w-auto rounded object-contain" />
+          <div className="flex items-center gap-2">
+            <KolheyWordmark size="sm" variant="light" />
             <span className="text-muted-foreground text-sm">/ Novo Projeto</span>
           </div>
         </div>

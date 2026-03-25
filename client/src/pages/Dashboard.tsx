@@ -5,7 +5,6 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import {
-  Sparkles,
   Plus,
   Film,
   Clock,
@@ -20,6 +19,9 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+const KOLHEY_LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663468388409/gwVBgn9SLQhabuuxC5oTDT/kolhey-logo_46813286.jpeg";
+
 type VideoProject = {
   id: number;
   title: string;
@@ -48,7 +50,7 @@ function ProjectCard({ project, onDelete }: { project: VideoProject; onDelete: (
   const isSpinning = project.status === "processing" || project.status === "uploading";
 
   return (
-    <div className="group p-5 rounded-xl border border-border bg-card hover:border-primary/40 transition-all">
+    <div className="group p-5 rounded-xl border border-border bg-card hover:border-primary/50 transition-all">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
           <Film className="w-5 h-5 text-primary" />
@@ -148,21 +150,21 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
+      {/* Sidebar Kolhey */}
       <aside className="w-64 border-r border-border bg-sidebar flex flex-col flex-shrink-0">
+        {/* Logo */}
         <div className="p-5 border-b border-border">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-primary" />
-            </div>
-            <span className="font-bold text-base">AI Video Editor</span>
-          </div>
+          <img
+            src={KOLHEY_LOGO}
+            alt="Kolhey"
+            className="h-10 w-auto rounded object-contain"
+          />
         </div>
 
         <nav className="flex-1 p-4 space-y-1">
           <button
             onClick={() => navigate("/dashboard")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium text-sm"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium text-sm border border-primary/20"
           >
             <LayoutDashboard className="w-4 h-4" />
             Dashboard
@@ -176,10 +178,11 @@ export default function Dashboard() {
           </button>
         </nav>
 
+        {/* User info + tagline */}
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm">
-              {user?.name?.[0]?.toUpperCase() ?? "U"}
+              {user?.name?.[0]?.toUpperCase() ?? "K"}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.name ?? "Usuário"}</p>
@@ -195,6 +198,9 @@ export default function Dashboard() {
             <LogOut className="w-4 h-4 mr-2" />
             Sair
           </Button>
+          <p className="text-xs text-muted-foreground/50 mt-3 text-center italic" style={{ fontFamily: "'Dancing Script', cursive", fontSize: "0.85rem" }}>
+            Resultados que se cultivam
+          </p>
         </div>
       </aside>
 
@@ -203,12 +209,14 @@ export default function Dashboard() {
         <div className="p-8">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-2xl font-bold">Meus Projetos</h1>
+              <h1 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+                Meus Projetos
+              </h1>
               <p className="text-muted-foreground text-sm mt-1">
                 {projectList.length} projeto{projectList.length !== 1 ? "s" : ""}
               </p>
             </div>
-            <Button onClick={() => navigate("/upload")}>
+            <Button onClick={() => navigate("/upload")} className="bg-primary hover:bg-primary/90">
               <Plus className="w-4 h-4 mr-2" />
               Novo Projeto
             </Button>
@@ -225,11 +233,13 @@ export default function Dashboard() {
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
                 <Film className="w-8 h-8 text-primary" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">Nenhum projeto ainda</h3>
+              <h3 className="text-lg font-semibold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+                Nenhum projeto ainda
+              </h3>
               <p className="text-muted-foreground text-sm mb-6">
                 Faça upload de um vídeo MP4 para começar
               </p>
-              <Button onClick={() => navigate("/upload")}>
+              <Button onClick={() => navigate("/upload")} className="bg-primary hover:bg-primary/90">
                 <Plus className="w-4 h-4 mr-2" />
                 Criar primeiro projeto
               </Button>

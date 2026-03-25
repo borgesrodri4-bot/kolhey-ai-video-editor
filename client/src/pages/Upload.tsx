@@ -14,9 +14,11 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Sparkles,
 } from "lucide-react";
+
 import { toast } from "sonner";
+
+const KOLHEY_LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663468388409/gwVBgn9SLQhabuuxC5oTDT/kolhey-logo_46813286.jpeg";
 
 const MAX_SIZE_BYTES = 500 * 1024 * 1024; // 500MB
 const ALLOWED_TYPES = ["video/mp4", "video/quicktime", "video/x-msvideo"];
@@ -158,9 +160,9 @@ export default function Upload() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Dashboard
           </Button>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="font-semibold">Novo Projeto</span>
+          <div className="flex items-center gap-3">
+            <img src={KOLHEY_LOGO} alt="Kolhey" className="h-8 w-auto rounded object-contain" />
+            <span className="text-muted-foreground text-sm">/ Novo Projeto</span>
           </div>
         </div>
       </header>

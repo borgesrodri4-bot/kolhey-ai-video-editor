@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Dancing+Script:wght@600&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -43,44 +43,63 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ─── Kolhey Brand Palette ───────────────────────────────────────────────────
+   Primary Navy:  #0D1B2E  → oklch(0.18 0.04 240)
+   Mid Navy:      #1A2D47  → oklch(0.24 0.05 240)
+   Light Navy:    #243650  → oklch(0.29 0.055 240)
+   Orange:        #E84B1A  → oklch(0.60 0.20 35)
+   Orange Light:  #F06030  → oklch(0.65 0.18 35)
+   Cream/White:   #F5F0E8  → oklch(0.96 0.012 80)
+   Muted text:    #8A9BB5  → oklch(0.65 0.04 240)
+─────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --radius: 0.75rem;
-  /* Dark-first design */
-  --background: oklch(0.12 0.01 260);
-  --foreground: oklch(0.96 0.005 260);
-  --card: oklch(0.16 0.015 260);
-  --card-foreground: oklch(0.96 0.005 260);
-  --popover: oklch(0.16 0.015 260);
-  --popover-foreground: oklch(0.96 0.005 260);
-  --primary: oklch(0.65 0.22 270);
-  --primary-foreground: oklch(0.98 0.005 260);
-  --secondary: oklch(0.22 0.02 260);
-  --secondary-foreground: oklch(0.85 0.01 260);
-  --muted: oklch(0.20 0.015 260);
-  --muted-foreground: oklch(0.60 0.01 260);
-  --accent: oklch(0.65 0.22 270);
-  --accent-foreground: oklch(0.98 0.005 260);
-  --destructive: oklch(0.60 0.22 25);
-  --destructive-foreground: oklch(0.98 0.005 260);
-  --border: oklch(0.25 0.02 260);
-  --input: oklch(0.20 0.015 260);
-  --ring: oklch(0.65 0.22 270);
-  --chart-1: oklch(0.65 0.22 270);
-  --chart-2: oklch(0.65 0.22 310);
-  --chart-3: oklch(0.65 0.22 200);
-  --chart-4: oklch(0.65 0.22 140);
-  --chart-5: oklch(0.65 0.22 50);
-  --sidebar: oklch(0.14 0.012 260);
-  --sidebar-foreground: oklch(0.96 0.005 260);
-  --sidebar-primary: oklch(0.65 0.22 270);
-  --sidebar-primary-foreground: oklch(0.98 0.005 260);
-  --sidebar-accent: oklch(0.20 0.015 260);
-  --sidebar-accent-foreground: oklch(0.96 0.005 260);
-  --sidebar-border: oklch(0.22 0.02 260);
-  --sidebar-ring: oklch(0.65 0.22 270);
+  --radius: 0.625rem;
+
+  /* Kolhey dark navy theme */
+  --background:            oklch(0.18 0.04 240);
+  --foreground:            oklch(0.96 0.012 80);
+  --card:                  oklch(0.22 0.045 240);
+  --card-foreground:       oklch(0.96 0.012 80);
+  --popover:               oklch(0.22 0.045 240);
+  --popover-foreground:    oklch(0.96 0.012 80);
+
+  /* Orange as primary — Kolhey signature */
+  --primary:               oklch(0.60 0.20 35);
+  --primary-foreground:    oklch(0.98 0.005 80);
+
+  --secondary:             oklch(0.27 0.05 240);
+  --secondary-foreground:  oklch(0.88 0.01 80);
+
+  --muted:                 oklch(0.25 0.04 240);
+  --muted-foreground:      oklch(0.65 0.04 240);
+
+  --accent:                oklch(0.60 0.20 35);
+  --accent-foreground:     oklch(0.98 0.005 80);
+
+  --destructive:           oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(0.98 0.005 80);
+
+  --border:                oklch(0.30 0.045 240);
+  --input:                 oklch(0.25 0.04 240);
+  --ring:                  oklch(0.60 0.20 35);
+
+  --chart-1:               oklch(0.60 0.20 35);
+  --chart-2:               oklch(0.65 0.15 200);
+  --chart-3:               oklch(0.65 0.15 140);
+  --chart-4:               oklch(0.65 0.15 310);
+  --chart-5:               oklch(0.65 0.15 80);
+
+  /* Sidebar — slightly darker navy */
+  --sidebar:               oklch(0.16 0.038 240);
+  --sidebar-foreground:    oklch(0.96 0.012 80);
+  --sidebar-primary:       oklch(0.60 0.20 35);
+  --sidebar-primary-foreground: oklch(0.98 0.005 80);
+  --sidebar-accent:        oklch(0.22 0.045 240);
+  --sidebar-accent-foreground: oklch(0.96 0.012 80);
+  --sidebar-border:        oklch(0.28 0.045 240);
+  --sidebar-ring:          oklch(0.60 0.20 35);
 }
-
-
 
 @layer base {
   * {
@@ -89,6 +108,13 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', sans-serif;
+  }
+  /* Kolhey serif headings */
+  h1, h2, h3, .font-serif {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  .font-script {
+    font-family: 'Dancing Script', cursive;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
@@ -104,24 +130,11 @@
 }
 
 @layer components {
-  /**
-   * Custom container utility that centers content and adds responsive padding.
-   *
-   * This overrides Tailwind's default container behavior to:
-   * - Auto-center content (mx-auto)
-   * - Add responsive horizontal padding
-   * - Set max-width for large screens
-   *
-   * Usage: <div className="container">...</div>
-   *
-   * For custom widths, use max-w-* utilities directly:
-   * <div className="max-w-6xl mx-auto px-4">...</div>
-   */
   .container {
     width: 100%;
     margin-left: auto;
     margin-right: auto;
-    padding-left: 1rem; /* 16px - mobile padding */
+    padding-left: 1rem;
     padding-right: 1rem;
   }
 
@@ -132,16 +145,29 @@
 
   @media (min-width: 640px) {
     .container {
-      padding-left: 1.5rem; /* 24px - tablet padding */
+      padding-left: 1.5rem;
       padding-right: 1.5rem;
     }
   }
 
   @media (min-width: 1024px) {
     .container {
-      padding-left: 2rem; /* 32px - desktop padding */
+      padding-left: 2rem;
       padding-right: 2rem;
-      max-width: 1280px; /* Standard content width */
+      max-width: 1280px;
     }
+  }
+
+  /* Kolhey orange dot accent — used in "Kolhey" brand name */
+  .kolhey-o {
+    color: oklch(0.60 0.20 35);
+  }
+
+  /* Kolhey gradient text */
+  .kolhey-gradient {
+    background: linear-gradient(135deg, oklch(0.96 0.012 80) 0%, oklch(0.60 0.20 35) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }

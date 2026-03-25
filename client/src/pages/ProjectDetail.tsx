@@ -15,15 +15,18 @@ import {
   Edit3,
   Check,
   X,
-  Sparkles,
   ImageIcon,
   Clock,
   CheckCircle2,
   XCircle,
   AlertCircle,
   ChevronRight,
+  Film,
 } from "lucide-react";
+
 import { toast } from "sonner";
+
+const KOLHEY_LOGO = "https://d2xsxph8kpxj0f.cloudfront.net/310519663468388409/gwVBgn9SLQhabuuxC5oTDT/kolhey-logo_46813286.jpeg";
 
 type Scene = {
   id: number;
@@ -337,6 +340,7 @@ export default function ProjectDetail() {
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
+            <img src={KOLHEY_LOGO} alt="Kolhey" className="h-8 w-auto rounded object-contain" />
             <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="text-muted-foreground">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Dashboard
@@ -433,8 +437,8 @@ export default function ProjectDetail() {
         {project.scenes.length > 0 ? (
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h2 className="font-semibold text-lg">
+              <Film className="w-4 h-4 text-primary" />
+              <h2 className="font-semibold text-lg" style={{ fontFamily: "'Playfair Display', serif" }}>
                 Timeline de Cenas ({project.scenes.length})
               </h2>
             </div>

@@ -57,3 +57,11 @@
 ## Entrega
 - [ ] Checkpoint final
 - [ ] Documentação de uso
+
+## Identidade Visual Kolhey
+- [ ] Upload e CDN da logo Kolhey
+- [ ] Atualizar CSS global com paleta Kolhey (azul escuro #0D1B2E, laranja #E84B1A, branco)
+- [ ] Atualizar tipografia para serif (Playfair Display) no título e sans-serif no corpo
+- [ ] Atualizar landing page com nome, tagline e cores Kolhey
+- [ ] Atualizar sidebar/header do dashboard com logo Kolhey
+- [ ] Atualizar título da aba (VITE_APP_TITLE) para Kolhey

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { OnboardingModal, useOnboarding } from "@/components/OnboardingModal";
 import { KolheyWordmark } from "@/components/KolheyLogo";
@@ -7,19 +8,8 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import {
-  Plus,
-  Film,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  Loader2,
-  Trash2,
-  Eye,
-  LogOut,
-  LayoutDashboard,
-  Brain,
-  ShieldCheck,
-  HelpCircle,
+  Plus, Film, Clock, CheckCircle2, XCircle, Loader2, Trash2, Eye,
+  LogOut, LayoutDashboard, Brain, ShieldCheck, HelpCircle, Menu, X, Search, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -46,6 +36,25 @@ const statusConfig = {
   failed: { label: "Falhou", icon: XCircle, className: "bg-red-400/10 text-red-400 border-red-400/20" },
 };
 
+// ─── Skeleton Card ─────────────────────────────────────────────────────────────
+function SkeletonCard() {
+  return (
+    <div className="p-5 rounded-xl border border-border bg-card animate-pulse">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="w-10 h-10 rounded-lg bg-muted" />
+        <div className="w-20 h-5 rounded-full bg-muted" />
+      </div>
+      <div className="w-3/4 h-4 rounded bg-muted mb-2" />
+      <div className="w-1/2 h-3 rounded bg-muted mb-4" />
+      <div className="flex items-center justify-between">
+        <div className="w-24 h-3 rounded bg-muted" />
+        <div className="w-16 h-6 rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Project Card ──────────────────────────────────────────────────────────────
 function ProjectCard({ project, onDelete }: { project: VideoProject; onDelete: () => void }) {
   const [, navigate] = useLocation();
   const cfg = statusConfig[project.status as keyof typeof statusConfig] ?? statusConfig.pending;
@@ -53,7 +62,10 @@ function ProjectCard({ project, onDelete }: { project: VideoProject; onDelete: (
   const isSpinning = project.status === "processing" || project.status === "uploading";
 
   return (
-    <div className="group p-5 rounded-xl border border-border bg-card hover:border-primary/50 transition-all">
+    <div
+      className="group p-5 rounded-xl border border-border bg-card hover:border-primary/50 transition-all cursor-pointer"
+      onClick={() => navigate(`/projects/${project.id}`)}
+    >
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
           <Film className="w-5 h-5 text-primary" />
@@ -89,20 +101,23 @@ function ProjectCard({ project, onDelete }: { project: VideoProject; onDelete: (
         <span className="text-xs text-muted-foreground">
           {formatDistanceToNow(new Date(project.createdAt), { addSuffix: true, locale: ptBR })}
         </span>
-        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div
+          className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 px-2 text-muted-foreground hover:text-foreground"
+            size="sm" variant="ghost"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
             onClick={() => navigate(`/projects/${project.id}`)}
+            title="Ver projeto"
           >
             <Eye className="w-3.5 h-3.5" />
           </Button>
           <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 px-2 text-muted-foreground hover:text-destructive"
+            size="sm" variant="ghost"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
             onClick={onDelete}
+            title="Deletar projeto"
           >
             <Trash2 className="w-3.5 h-3.5" />
           </Button>
@@ -112,10 +127,108 @@ function ProjectCard({ project, onDelete }: { project: VideoProject; onDelete: (
   );
 }
 
+// ─── Sidebar Content ───────────────────────────────────────────────────────────
+function SidebarContent({
+  user, navigate, logout, onClose,
+}: {
+  user: { name?: string | null; email?: string | null; role?: string } | null;
+  navigate: (to: string) => void;
+  logout: () => void;
+  onClose?: () => void;
+}) {
+  const handleNav = (path: string) => {
+    navigate(path);
+    onClose?.();
+  };
+
+  return (
+    <>
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <KolheyWordmark size="sm" variant="light" />
+        {onClose && (
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground lg:hidden">
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      <nav className="flex-1 p-4 space-y-1">
+        <button
+          onClick={() => handleNav("/dashboard")}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium text-sm border border-primary/20"
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          Dashboard
+        </button>
+        <button
+          onClick={() => handleNav("/upload")}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Novo Projeto
+        </button>
+        <button
+          onClick={() => handleNav("/adaptive-profile")}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
+        >
+          <Brain className="w-4 h-4" />
+          Perfil Adaptativo
+        </button>
+        {user?.role === "admin" && (
+          <button
+            onClick={() => handleNav("/admin")}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
+          >
+            <ShieldCheck className="w-4 h-4" />
+            Painel Admin
+          </button>
+        )}
+        <button
+          onClick={() => { localStorage.removeItem("kolhey_onboarding_done"); window.location.reload(); }}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
+        >
+          <HelpCircle className="w-4 h-4" />
+          Como funciona
+        </button>
+      </nav>
+
+      <div className="p-4 border-t border-border">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm flex-shrink-0">
+            {user?.name?.[0]?.toUpperCase() ?? "K"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{user?.name ?? "Usuário"}</p>
+            <p className="text-xs text-muted-foreground truncate">{user?.email ?? ""}</p>
+          </div>
+        </div>
+        <Button
+          variant="ghost" size="sm"
+          className="w-full justify-start text-muted-foreground hover:text-foreground"
+          onClick={logout}
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Sair
+        </Button>
+        <p
+          className="text-xs text-muted-foreground/50 mt-3 text-center italic"
+          style={{ fontFamily: "'Dancing Script', cursive", fontSize: "0.85rem" }}
+        >
+          Resultados que se cultivam
+        </p>
+      </div>
+    </>
+  );
+}
+
+// ─── Main Dashboard ────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const { user, isAuthenticated, loading, logout } = useAuth();
   const [, navigate] = useLocation();
   const { show: showOnboarding, dismiss: dismissOnboarding } = useOnboarding();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const { data: projects, isLoading, refetch } = trpc.videos.list.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -130,10 +243,7 @@ export default function Dashboard() {
   });
 
   const deleteMutation = trpc.videos.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Projeto deletado com sucesso");
-      refetch();
-    },
+    onSuccess: () => { toast.success("Projeto deletado com sucesso"); refetch(); },
     onError: () => toast.error("Erro ao deletar projeto"),
   });
 
@@ -150,117 +260,133 @@ export default function Dashboard() {
     return null;
   }
 
-  const projectList = (projects as VideoProject[] | undefined) ?? [];
+  const allProjects = (projects as VideoProject[] | undefined) ?? [];
+  const projectList = allProjects.filter((p) => {
+    const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || p.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar Kolhey */}
-      <aside className="w-64 border-r border-border bg-sidebar flex flex-col flex-shrink-0">
-        {/* Logo integrada — SVG inline, parte estrutural do sidebar */}
-        <div className="px-5 py-4 border-b border-border flex items-center">
-          <KolheyWordmark size="sm" variant="light" />
-        </div>
-
-        <nav className="flex-1 p-4 space-y-1">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium text-sm border border-primary/20"
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            Dashboard
-          </button>
-          <button
-            onClick={() => navigate("/upload")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Projeto
-          </button>
-          <button
-            onClick={() => navigate("/adaptive-profile")}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
-          >
-            <Brain className="w-4 h-4" />
-            Perfil Adaptativo
-          </button>
-          {user?.role === "admin" && (
-            <button
-              onClick={() => navigate("/admin")}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              Painel Admin
-            </button>
-          )}
-          <button
-            onClick={() => { localStorage.removeItem('kolhey_onboarding_done'); window.location.reload(); }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
-          >
-            <HelpCircle className="w-4 h-4" />
-            Como funciona
-          </button>
-        </nav>
-
-        {/* User info + tagline */}
-        <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm">
-              {user?.name?.[0]?.toUpperCase() ?? "K"}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name ?? "Usuário"}</p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email ?? ""}</p>
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start text-muted-foreground hover:text-foreground"
-            onClick={logout}
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Sair
-          </Button>
-          <p className="text-xs text-muted-foreground/50 mt-3 text-center italic" style={{ fontFamily: "'Dancing Script', cursive", fontSize: "0.85rem" }}>
-            Resultados que se cultivam
-          </p>
-        </div>
+      {/* ── Desktop Sidebar ── */}
+      <aside className="hidden lg:flex w-64 border-r border-border bg-sidebar flex-col flex-shrink-0">
+        <SidebarContent user={user} navigate={navigate} logout={logout} />
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">
-          <div className="flex items-center justify-between mb-8">
+      {/* ── Mobile Sidebar Overlay ── */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-sidebar border-r border-border flex flex-col">
+            <SidebarContent
+              user={user}
+              navigate={navigate}
+              logout={logout}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </aside>
+        </div>
+      )}
+
+      {/* ── Main Content ── */}
+      <main className="flex-1 overflow-auto min-w-0">
+        {/* Mobile header */}
+        <div className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+          <button onClick={() => setSidebarOpen(true)} className="text-muted-foreground hover:text-foreground">
+            <Menu className="w-5 h-5" />
+          </button>
+          <KolheyWordmark size="sm" variant="light" />
+          <Button size="sm" onClick={() => navigate("/upload")} className="h-8 px-3">
+            <Plus className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+
+        <div className="p-4 sm:p-6 lg:p-8">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
             <div>
-              <h1 className="text-2xl font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+              <h1
+                className="text-xl sm:text-2xl font-bold"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
                 Meus Projetos
               </h1>
               <p className="text-muted-foreground text-sm mt-1">
-                {projectList.length} projeto{projectList.length !== 1 ? "s" : ""}
+                {projectList.length} de {allProjects.length} projeto{allProjects.length !== 1 ? "s" : ""}
               </p>
             </div>
-            <Button onClick={() => navigate("/upload")} className="bg-primary hover:bg-primary/90">
+            <Button
+              onClick={() => navigate("/upload")}
+              className="bg-primary hover:bg-primary/90 hidden sm:flex"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Novo Projeto
             </Button>
           </div>
 
+          {/* Search & Filter */}
+          {allProjects.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Buscar projetos..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+                >
+                  <option value="all">Todos os status</option>
+                  <option value="pending">Pendente</option>
+                  <option value="processing">Processando</option>
+                  <option value="completed">Concluído</option>
+                  <option value="failed">Falhou</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-44 rounded-xl border border-border bg-card animate-pulse" />
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
             </div>
           ) : projectList.length === 0 ? (
-            <div className="text-center py-24">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Film className="w-8 h-8 text-primary" />
+            <div className="text-center py-16 sm:py-24">
+              {/* Decorative circle */}
+              <div className="relative w-24 h-24 mx-auto mb-6">
+                <div className="w-24 h-24 rounded-full bg-primary/5 border-2 border-primary/20 flex items-center justify-center">
+                  <Film className="w-10 h-10 text-primary/40" />
+                </div>
+                <div className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                  <Plus className="w-3.5 h-3.5 text-white" />
+                </div>
               </div>
-              <h3 className="text-lg font-semibold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+              <h3
+                className="text-xl font-semibold mb-2"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
                 Nenhum projeto ainda
               </h3>
-              <p className="text-muted-foreground text-sm mb-6">
-                Faça upload de um vídeo MP4 para começar
+              <p className="text-muted-foreground text-sm mb-2 max-w-xs mx-auto">
+                Faça upload de um vídeo MP4 e a IA irá transcrever, dividir em cenas e gerar ilustrações automaticamente.
+              </p>
+              <p
+                className="text-muted-foreground/60 text-sm mb-8 italic"
+                style={{ fontFamily: "'Dancing Script', cursive", fontSize: "1rem" }}
+              >
+                Resultados que se cultivam
               </p>
               <Button onClick={() => navigate("/upload")} className="bg-primary hover:bg-primary/90">
                 <Plus className="w-4 h-4 mr-2" />
@@ -268,7 +394,7 @@ export default function Dashboard() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {projectList.map((project) => (
                 <ProjectCard
                   key={project.id}
@@ -280,6 +406,7 @@ export default function Dashboard() {
           )}
         </div>
       </main>
+
       <OnboardingModal open={showOnboarding} onClose={dismissOnboarding} />
     </div>
   );

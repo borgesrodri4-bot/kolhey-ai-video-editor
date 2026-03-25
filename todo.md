@@ -80,3 +80,15 @@
 
 ## Entrega
 - [x] Checkpoint final
+
+## Melhorias Finais (Fase Atual)
+- [ ] Player HTML5 do vídeo original na página de detalhe
+- [ ] Preview de ilustração em modal ao clicar na imagem da cena
+- [ ] Sincronização do player com a cena selecionada na timeline
+- [ ] Sistema de notificações por e-mail (Resend API)
+- [ ] Skeleton loaders nas listas do Dashboard e Admin
+- [ ] Empty state ilustrado no Dashboard (sem projetos)
+- [ ] Página 404 personalizada com identidade Kolhey
+- [ ] Responsividade mobile: sidebar collapsible, cards empilhados
+- [ ] Botão de voltar ao topo nas páginas longas
+- [ ] Toast de confirmação ao salvar edições de cena

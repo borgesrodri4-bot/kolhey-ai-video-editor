@@ -1,4 +1,4 @@
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql, count, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -174,4 +174,68 @@ export async function updateProcessingJob(
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(processingJobs).set(data).where(eq(processingJobs.id, id));
+}
+
+// ─── Reorder Scenes ────────────────────────────────────────────────────────────
+export async function reorderScenes(updates: { id: number; sceneOrder: number }[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await Promise.all(
+    updates.map(({ id, sceneOrder }) =>
+      db.update(videoScenes).set({ sceneOrder }).where(eq(videoScenes.id, id))
+    )
+  );
+}
+
+// ─── Admin Queries ─────────────────────────────────────────────────────────────
+export async function getAdminStats() {
+  const db = await getDb();
+  if (!db) return { totalUsers: 0, totalProjects: 0, totalProcessed: 0, totalFailed: 0 };
+
+  const [userCount] = await db.select({ count: count() }).from(users);
+  const [projectCount] = await db.select({ count: count() }).from(videoProjects);
+  const [processedCount] = await db
+    .select({ count: count() })
+    .from(videoProjects)
+    .where(eq(videoProjects.status, "completed"));
+  const [failedCount] = await db
+    .select({ count: count() })
+    .from(videoProjects)
+    .where(eq(videoProjects.status, "failed"));
+
+  return {
+    totalUsers: userCount?.count ?? 0,
+    totalProjects: projectCount?.count ?? 0,
+    totalProcessed: processedCount?.count ?? 0,
+    totalFailed: failedCount?.count ?? 0,
+  };
+}
+
+export async function getAllUsersAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(users).orderBy(desc(users.createdAt));
+}
+
+export async function getAllProjectsAdmin() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(videoProjects).orderBy(desc(videoProjects.createdAt)).limit(200);
+}
+
+export async function getProcessingsByDay(days = 14) {
+  const db = await getDb();
+  if (!db) return [];
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const rows = await db
+    .select({
+      day: sql<string>`DATE(createdAt)`,
+      count: count(),
+    })
+    .from(videoProjects)
+    .where(gte(videoProjects.createdAt, since))
+    .groupBy(sql`DATE(createdAt)`)
+    .orderBy(sql`DATE(createdAt)`);
+  return rows;
 }

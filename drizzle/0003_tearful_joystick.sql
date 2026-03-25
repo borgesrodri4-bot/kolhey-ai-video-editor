@@ -1,0 +1,1 @@
+ALTER TABLE `video_projects` ADD `visualStyle` varchar(64) DEFAULT 'auto';

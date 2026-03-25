@@ -3,24 +3,28 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import {
-  Upload as UploadIcon,
-  Film,
-  X,
-  ArrowLeft,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
+  Upload as UploadIcon, Film, X, ArrowLeft, Loader2,
+  CheckCircle2, AlertCircle, Sparkles, Brain, Palette,
 } from "lucide-react";
-
 import { toast } from "sonner";
 import { KolheyWordmark } from "@/components/KolheyLogo";
 
-const MAX_SIZE_BYTES = 500 * 1024 * 1024; // 500MB
+const MAX_SIZE_BYTES = 500 * 1024 * 1024;
 const ALLOWED_TYPES = ["video/mp4", "video/quicktime", "video/x-msvideo"];
+
+const VISUAL_STYLES = [
+  { id: "auto", label: "Automático", description: "IA decide o melhor estilo", icon: "✨" },
+  { id: "flat", label: "Flat Design", description: "Ilustrações planas e modernas", icon: "🎨" },
+  { id: "watercolor", label: "Aquarela", description: "Pinceladas suaves e artísticas", icon: "🖌️" },
+  { id: "cartoon", label: "Cartoon", description: "Estilo animação e quadrinhos", icon: "💬" },
+  { id: "photorealistic", label: "Fotorrealista", description: "Imagens hiper-realistas", icon: "📷" },
+  { id: "minimalist", label: "Minimalista", description: "Formas simples e elegantes", icon: "⬜" },
+];
 
 function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -34,11 +38,16 @@ export default function Upload() {
 
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
+  const [selectedStyle, setSelectedStyle] = useState("auto");
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "creating" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: adaptiveProfile } = trpc.adaptive.getProfile.useQuery(undefined, {
+    enabled: isAuthenticated,
+  });
 
   const getUploadUrlMutation = trpc.videos.getUploadUrl.useMutation();
   const createProjectMutation = trpc.videos.create.useMutation();
@@ -55,10 +64,7 @@ export default function Upload() {
 
   const handleFileSelect = (f: File) => {
     const err = validateFile(f);
-    if (err) {
-      toast.error(err);
-      return;
-    }
+    if (err) { toast.error(err); return; }
     setFile(f);
     if (!title) setTitle(f.name.replace(/\.[^/.]+$/, ""));
     setUploadState("idle");
@@ -86,20 +92,16 @@ export default function Upload() {
       setUploadProgress(0);
       setErrorMsg("");
 
-      // 1. Obter URL de upload
       const { key, uploadEndpoint } = await getUploadUrlMutation.mutateAsync({
         filename: file.name,
         contentType: file.type || "video/mp4",
         fileSizeBytes: file.size,
       });
 
-      // 2. Upload do arquivo via XHR para rastrear progresso
       const videoUrl = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            setUploadProgress(Math.round((e.loaded / e.total) * 100));
-          }
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
         };
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
@@ -115,13 +117,13 @@ export default function Upload() {
         xhr.send(file);
       });
 
-      // 3. Criar projeto no banco
       setUploadState("creating");
       const { id } = await createProjectMutation.mutateAsync({
         title: title.trim(),
         videoKey: key,
         videoUrl,
         fileSizeBytes: file.size,
+        visualStyle: selectedStyle,
       });
 
       setUploadState("done");
@@ -149,30 +151,55 @@ export default function Upload() {
   }
 
   const isProcessing = uploadState === "uploading" || uploadState === "creating";
+  const hasProfile = adaptiveProfile && (adaptiveProfile as { confidenceScore?: number }).confidenceScore != null;
+  const confidence = hasProfile ? Math.round(((adaptiveProfile as { confidenceScore?: number }).confidenceScore ?? 0) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container flex items-center gap-4 h-16">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="text-muted-foreground">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Dashboard
-          </Button>
-          <div className="flex items-center gap-2">
-            <KolheyWordmark size="sm" variant="light" />
-            <span className="text-muted-foreground text-sm">/ Novo Projeto</span>
+        <div className="container flex items-center justify-between h-16">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/dashboard")} className="text-muted-foreground">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Dashboard
+            </Button>
+            <div className="flex items-center gap-2">
+              <KolheyWordmark size="sm" variant="light" />
+              <span className="text-muted-foreground text-sm">/ Novo Projeto</span>
+            </div>
           </div>
+          {/* Badge de perfil adaptativo */}
+          {hasProfile && confidence > 0 && (
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 gap-1.5">
+              <Brain className="w-3 h-3" />
+              Perfil ativo · {confidence}% confiança
+            </Badge>
+          )}
         </div>
       </header>
 
-      <div className="container py-12 max-w-2xl mx-auto">
+      <div className="container py-10 max-w-2xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Enviar Vídeo</h1>
+          <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Enviar Vídeo
+          </h1>
           <p className="text-muted-foreground">
             Faça upload de um vídeo MP4 para iniciar o processamento com IA
           </p>
         </div>
+
+        {/* Adaptive Profile Notice */}
+        {hasProfile && confidence >= 30 && (
+          <div className="mb-6 p-4 rounded-xl border border-primary/20 bg-primary/5 flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-primary">Perfil adaptativo aplicado</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                A IA usará seu estilo aprendido ({confidence}% de confiança) para personalizar as cenas e ilustrações deste projeto.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Drop Zone */}
         <div
@@ -229,6 +256,47 @@ export default function Upload() {
           )}
         </div>
 
+        {/* Title input */}
+        <div className="mb-6">
+          <Label htmlFor="title" className="text-sm font-medium mb-2 block">
+            Título do projeto
+          </Label>
+          <Input
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ex: Apresentação de produto Q1 2025"
+            disabled={isProcessing || uploadState === "done"}
+            className="bg-card border-border"
+          />
+        </div>
+
+        {/* Visual Style Selection */}
+        <div className="mb-6">
+          <Label className="text-sm font-medium mb-3 flex items-center gap-2">
+            <Palette className="w-4 h-4 text-primary" />
+            Estilo visual das ilustrações
+          </Label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {VISUAL_STYLES.map((style) => (
+              <button
+                key={style.id}
+                onClick={() => setSelectedStyle(style.id)}
+                disabled={isProcessing || uploadState === "done"}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  selectedStyle === style.id
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border bg-card hover:border-primary/40 hover:bg-card/80 text-foreground"
+                }`}
+              >
+                <div className="text-xl mb-1">{style.icon}</div>
+                <p className="text-xs font-semibold">{style.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-tight">{style.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Upload Progress */}
         {(uploadState === "uploading" || uploadState === "creating") && (
           <div className="mb-6 p-4 rounded-xl border border-border bg-card">
@@ -273,21 +341,6 @@ export default function Upload() {
             </div>
           </div>
         )}
-
-        {/* Title input */}
-        <div className="mb-6">
-          <Label htmlFor="title" className="text-sm font-medium mb-2 block">
-            Título do projeto
-          </Label>
-          <Input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ex: Apresentação de produto Q1 2025"
-            disabled={isProcessing || uploadState === "done"}
-            className="bg-card border-border"
-          />
-        </div>
 
         {/* Actions */}
         <div className="flex gap-3">

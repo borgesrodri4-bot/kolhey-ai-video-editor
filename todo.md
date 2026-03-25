@@ -1,93 +1,82 @@
-# AI Video Editor - TODO
+# AI Video Editor - Kolhey TODO
 
 ## Banco de Dados
-- [x] Schema: tabela `video_projects` (id, userId, title, status, originalVideoUrl, audioUrl, duration, createdAt, updatedAt)
-- [x] Schema: tabela `video_scenes` (id, projectId, order, startTime, endTime, transcript, illustrationPrompt, illustrationUrl, status)
-- [x] Schema: tabela `processing_jobs` (id, projectId, step, status, progress, errorMessage, createdAt, updatedAt)
-- [x] Executar migrações SQL
+- [x] Schema: tabela `video_projects`
+- [x] Schema: tabela `video_scenes`
+- [x] Schema: tabela `processing_jobs`
+- [x] Schema: tabela `user_style_profiles` (sistema adaptativo)
+- [x] Schema: tabela `edit_events` (log de edições)
+- [x] Schema: tabela `style_feedback` (feedback 👍/👎)
+- [x] Campo `visualStyle` na tabela `video_projects`
+- [x] Migrações SQL aplicadas
 
 ## Backend (tRPC Routers)
-- [x] Router `videos.upload` - gerar URL presigned S3 para upload direto
-- [x] Router `videos.create` - criar projeto após upload concluído
-- [x] Router `videos.list` - listar projetos do usuário com paginação
+- [x] Router `videos.getUploadUrl` - URL presigned S3
+- [x] Router `videos.create` - criar projeto com visualStyle
+- [x] Router `videos.list` - listar projetos do usuário
 - [x] Router `videos.getById` - buscar projeto com cenas
-- [x] Router `videos.delete` - deletar projeto e arquivos S3
-- [x] Router `videos.startProcessing` - iniciar pipeline assíncrono
-- [x] Router `videos.getJobStatus` - polling de status do processamento
-- [x] Router `scenes.update` - editar prompt ou texto de uma cena
-- [x] Router `scenes.regenerateImage` - regenerar ilustração de uma cena
-- [x] Router `scenes.exportJson` - exportar cenas em JSON para Remotion
+- [x] Router `videos.delete` - deletar projeto
+- [x] Router `videos.startProcessing` - iniciar pipeline
+- [x] Router `videos.getJobStatus` - polling de status
+- [x] Router `scenes.update` - editar prompt de cena
+- [x] Router `scenes.regenerateImage` - regenerar ilustração
+- [x] Router `scenes.exportJson` - exportar JSON para Remotion
+- [x] Router `scenes.reorder` - reordenar cenas (drag-and-drop)
+- [x] Router `scenes.submitFeedback` - feedback 👍/👎
+- [x] Router `adaptive.getProfile` - perfil adaptativo
+- [x] Router `adaptive.getEditHistory` - histórico de edições
+- [x] Router `adaptive.refreshProfile` - atualizar perfil
+- [x] Router `adaptive.getStyleContext` - contexto para pipeline
+- [x] Router `admin.getStats` - métricas gerais
+- [x] Router `admin.getUsers` - listar usuários
+- [x] Router `admin.getProjects` - listar projetos
+- [x] Router `admin.getProcessingsByDay` - gráfico de processamentos
 
 ## Pipeline de Processamento
-- [x] Módulo de transcrição com Whisper (áudio via URL)
-- [x] Módulo de transcrição com OpenAI Whisper (com timestamps)
-- [x] Módulo de análise com LLM para divisão em cenas e geração de prompts
-- [x] Módulo de geração de imagens (DALL-E / modelo interno)
-- [x] Orquestrador do pipeline com atualização de progresso no DB
-- [x] Tratamento de erros com retry automático por etapa
+- [x] Transcrição com Whisper (com timestamps)
+- [x] Análise com LLM (Claude) para divisão em cenas e prompts
+- [x] Geração de imagens (DALL-E / modelo interno)
+- [x] Orquestrador com progresso no DB
+- [x] Tratamento de erros com retry automático
+- [x] Injeção de perfil adaptativo nos prompts
+- [x] Injeção de estilo visual escolhido pelo usuário
+- [x] Notificação ao owner ao concluir/falhar
 
-## Frontend - Layout e Navegação
-- [x] Design system: paleta de cores escura/moderna, tipografia
-- [x] DashboardLayout com sidebar para usuários autenticados
-- [x] Landing page pública com CTA de login
-- [x] Rota /dashboard - painel principal
-- [x] Rota /upload - página de upload
-- [x] Rota /projects/:id - detalhe do projeto e timeline
-- [x] Rota /projects/:id/refine - editor de cenas (integrado na página de detalhe)
+## Frontend - Páginas
+- [x] Landing page pública com identidade Kolhey
+- [x] Dashboard com listagem de projetos e sidebar
+- [x] Upload com drag-and-drop, seleção de estilo e badge adaptativo
+- [x] ProjectDetail com timeline, drag-and-drop, feedback 👍/👎 e exportação
+- [x] AdaptiveProfile com métricas aprendidas e histórico
+- [x] Admin com métricas, gráfico, tabela de usuários e projetos
+- [x] Rota /admin protegida por role=admin
 
 ## Frontend - Componentes
-- [x] Componente DropZone para drag-and-drop de MP4
-- [x] Componente ProgressTracker com polling em tempo real
-- [x] Componente ProjectCard para listagem de projetos
-- [x] Componente SceneTimeline com visualização interativa
-- [x] Componente SceneCard com imagem, texto e botão de regenerar
-- [x] Componente ExportModal para exportar JSON (botão integrado)
-
-## Notificações e Exportação
-- [x] Notificação automática ao owner quando processamento concluir
-- [x] Notificação automática ao owner quando processamento falhar
-- [x] Exportação de cenas em JSON compatível com Remotion
-
-## Testes
-- [x] Teste do router `videos.list`
-- [x] Teste do router `scenes.exportJson`
-- [x] Teste do pipeline de processamento (mock de APIs)
-- [x] 7 testes passando (2 arquivos de teste)
-
-## Entrega
-- [ ] Checkpoint final
-- [ ] Documentação de uso
+- [x] KolheyLogo (SVG inline com O laranja e onça)
+- [x] OnboardingModal (3 passos para novos usuários)
+- [x] DropZone para drag-and-drop de MP4
+- [x] ProgressTracker com polling em tempo real
+- [x] ProjectCard para listagem
+- [x] SceneTimeline com drag-and-drop (@dnd-kit)
+- [x] SceneCard com feedback 👍/👎 e regenerar
+- [x] Exportação JSON com preview e download
 
 ## Identidade Visual Kolhey
-- [ ] Upload e CDN da logo Kolhey
-- [ ] Atualizar CSS global com paleta Kolhey (azul escuro #0D1B2E, laranja #E84B1A, branco)
-- [ ] Atualizar tipografia para serif (Playfair Display) no título e sans-serif no corpo
-- [ ] Atualizar landing page com nome, tagline e cores Kolhey
-- [ ] Atualizar sidebar/header do dashboard com logo Kolhey
-- [ ] Atualizar título da aba (VITE_APP_TITLE) para Kolhey
+- [x] CSS global: paleta navy #0D1B2E + laranja #E84B1A
+- [x] Tipografia: Playfair Display (títulos) + Inter (corpo) + Dancing Script (tagline)
+- [x] Logo SVG inline com O laranja e onça IA
+- [x] Favicon SVG com K + círculo laranja
+- [x] Meta tags SEO e OG tags
 
-## Sistema Adaptativo de Estilo
-- [x] Schema: tabela `user_style_profiles` (preferências aprendidas por usuário)
-- [x] Schema: tabela `edit_events` (log de cada edição feita pelo usuário)
-- [x] Schema: tabela `style_feedback` (avaliações de ilustrações aceitas/rejeitadas)
-- [x] Engine de análise de padrões de edição (server/adaptiveEngine.ts)
-- [x] Endpoint para registrar eventos de edição automaticamente
-- [x] Endpoint para atualizar perfil de estilo após análise
-- [x] Integração do perfil adaptativo no pipeline (injetar no prompt do Claude)
-- [x] Integração do perfil adaptativo na geração de imagens (injetar no prompt DALL-E)
-- [x] Painel de "Meu Estilo" no frontend com métricas aprendidas
-- [x] Indicador visual de confiança do sistema adaptativo
-- [x] Botão de feedback rápido (👍/👎) em cada cena gerada
-- [x] Testes do engine adaptativo (14 testes passando, 3 arquivos)
+## Sistema Adaptativo
+- [x] Engine de análise de padrões via LLM
+- [x] Trigger automático após conclusão do pipeline
+- [x] Painel de perfil com métricas e confiança
+- [x] Badge "Perfil Ativo" na página de upload
 
-## Integração Orgânica da Logo Kolhey
-- [x] Criar componente KolheyLogo em SVG inline (tipografia + círculo laranja no O)
-- [x] Integrar logo no header da landing page como elemento tipográfico
-- [x] Integrar logo no sidebar do dashboard como marca principal
-- [x] Integrar logo nos headers de Upload, ProjectDetail e AdaptiveProfile
-- [x] Remover uso da imagem JPG sobreposta em todas as páginas
+## Testes
+- [x] 14 testes passando (3 arquivos)
+- [x] Zero erros TypeScript
 
-## Ajuste da Logo e Onça
-- [ ] Corrigir posicionamento e proporção do círculo laranja no O
-- [ ] Adicionar onça SVG como elemento decorativo no hero (igual ao modelo)
-- [ ] Adicionar onça sutil no sidebar do dashboard
+## Entrega
+- [x] Checkpoint final

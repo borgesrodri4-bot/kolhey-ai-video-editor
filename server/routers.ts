@@ -14,6 +14,11 @@ import {
   getScenesByProject,
   updateVideoScene,
   getSceneById,
+  reorderScenes,
+  getAdminStats,
+  getAllUsersAdmin,
+  getAllProjectsAdmin,
+  getProcessingsByDay,
 } from "./db";
 import { runVideoPipeline } from "./pipeline";
 import { generateImage } from "./_core/imageGeneration";
@@ -61,6 +66,7 @@ const videosRouter = router({
         videoKey: z.string(),
         videoUrl: z.string().url(),
         fileSizeBytes: z.number(),
+        visualStyle: z.string().optional().default("auto"),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -71,6 +77,7 @@ const videosRouter = router({
         originalVideoUrl: input.videoUrl,
         originalVideoKey: input.videoKey,
         fileSizeBytes: input.fileSizeBytes,
+        visualStyle: input.visualStyle,
         progress: 0,
       });
       const insertId = (result as { insertId: number }).insertId;
@@ -262,6 +269,26 @@ const scenesRouter = router({
       return { recorded: true };
     }),
 
+  /** Reordena cenas via drag-and-drop */
+  reorder: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number(),
+        order: z.array(z.object({ id: z.number(), sceneOrder: z.number() })),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      await assertProjectOwner(input.projectId, ctx.user.id);
+      await reorderScenes(input.order);
+      await logEditEvent({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        eventType: "prompt_edited",
+        metadata: { action: "reorder_scenes", count: input.order.length },
+      });
+      return { reordered: true };
+    }),
+
   /** Exporta cenas em JSON compatível com Remotion — registra aceitação */
   exportJson: protectedProcedure
     .input(z.object({ projectId: z.number() }))
@@ -339,7 +366,23 @@ const adaptiveRouter = router({
   }),
 });
 
-// ─── App Router ────────────────────────────────────────────────────────────────
+// ─── Admin Router ─────────────────────────────────────────────────────────────
+const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.user.role !== "admin")
+    throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito a administradores" });
+  return next({ ctx });
+});
+
+const adminRouter = router({
+  getStats: adminProcedure.query(async () => getAdminStats()),
+  getUsers: adminProcedure.query(async () => getAllUsersAdmin()),
+  getProjects: adminProcedure.query(async () => getAllProjectsAdmin()),
+  getProcessingsByDay: adminProcedure
+    .input(z.object({ days: z.number().min(1).max(90).default(14) }))
+    .query(async ({ input }) => getProcessingsByDay(input.days)),
+});
+
+// ─── App Router ─────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -353,6 +396,7 @@ export const appRouter = router({
   videos: videosRouter,
   scenes: scenesRouter,
   adaptive: adaptiveRouter,
+  admin: adminRouter,
 });
 
 export type AppRouter = typeof appRouter;

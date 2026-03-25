@@ -5,6 +5,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import Admin from "./pages/Admin";
 import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
 import ProjectDetail from "./pages/ProjectDetail";
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/upload" component={Upload} />
       <Route path="/projects/:id" component={ProjectDetail} />
       <Route path="/adaptive-profile" component={AdaptiveProfile} />
+      <Route path="/admin" component={Admin} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -29,7 +31,7 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
-          <Toaster richColors position="top-right" />
+          <Toaster />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

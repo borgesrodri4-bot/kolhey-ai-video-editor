@@ -50,6 +50,8 @@ export const videoProjects = mysqlTable("video_projects", {
   currentStep: varchar("currentStep", { length: 128 }),
   errorMessage: text("errorMessage"),
   scenesCount: int("scenesCount").default(0).notNull(),
+  // Visual style chosen by user at upload time
+  visualStyle: varchar("visualStyle", { length: 64 }).default("auto"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

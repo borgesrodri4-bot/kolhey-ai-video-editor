@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `video_projects` ADD `visualStyle` varchar(64) DEFAULT 'auto';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3HSDZo5GWG3argo.root --database gwVBgn9SLQhabuuxC5oTDT --execute ALTER TABLE `video_projects` ADD `visualStyle` varchar(64) DEFAULT 'auto';",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 634
+}

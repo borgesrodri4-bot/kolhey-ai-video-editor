@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { OnboardingModal, useOnboarding } from "@/components/OnboardingModal";
 import { KolheyWordmark } from "@/components/KolheyLogo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,8 @@ import {
   LogOut,
   LayoutDashboard,
   Brain,
+  ShieldCheck,
+  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -112,6 +115,7 @@ function ProjectCard({ project, onDelete }: { project: VideoProject; onDelete: (
 export default function Dashboard() {
   const { user, isAuthenticated, loading, logout } = useAuth();
   const [, navigate] = useLocation();
+  const { show: showOnboarding, dismiss: dismissOnboarding } = useOnboarding();
 
   const { data: projects, isLoading, refetch } = trpc.videos.list.useQuery(undefined, {
     enabled: isAuthenticated,
@@ -178,6 +182,22 @@ export default function Dashboard() {
           >
             <Brain className="w-4 h-4" />
             Perfil Adaptativo
+          </button>
+          {user?.role === "admin" && (
+            <button
+              onClick={() => navigate("/admin")}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Painel Admin
+            </button>
+          )}
+          <button
+            onClick={() => { localStorage.removeItem('kolhey_onboarding_done'); window.location.reload(); }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
+          >
+            <HelpCircle className="w-4 h-4" />
+            Como funciona
           </button>
         </nav>
 
@@ -260,6 +280,7 @@ export default function Dashboard() {
           )}
         </div>
       </main>
+      <OnboardingModal open={showOnboarding} onClose={dismissOnboarding} />
     </div>
   );
 }

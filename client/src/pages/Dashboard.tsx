@@ -15,6 +15,7 @@ import {
   Eye,
   LogOut,
   LayoutDashboard,
+  Brain,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -175,6 +176,13 @@ export default function Dashboard() {
           >
             <Plus className="w-4 h-4" />
             Novo Projeto
+          </button>
+          <button
+            onClick={() => navigate("/adaptive-profile")}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium text-sm transition-colors"
+          >
+            <Brain className="w-4 h-4" />
+            Perfil Adaptativo
           </button>
         </nav>
 

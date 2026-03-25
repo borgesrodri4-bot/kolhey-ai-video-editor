@@ -18,6 +18,8 @@ import {
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { nanoid } from "nanoid";
+import type { StyleContext } from "./adaptiveEngine";
+import { analyzeAndUpdateProfile } from "./adaptiveEngine";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface TranscriptSegment {
@@ -81,8 +83,14 @@ async function transcribeVideo(audioUrl: string): Promise<TranscriptSegment[]> {
 
 // ─── Step 2: Análise Claude → Cenas + Prompts ─────────────────────────────────
 async function analyzeAndGenerateScenes(
-  segments: TranscriptSegment[]
+  segments: TranscriptSegment[],
+  styleCtx?: StyleContext
 ): Promise<SceneData[]> {
+  // Inject adaptive style context if available
+  const adaptiveInstructions = styleCtx?.isReliable && styleCtx.sceneAnalysisContext
+    ? `\n\nPerfil de estilo do usuário (aplique estas preferências):\n${styleCtx.sceneAnalysisContext}`
+    : "";
+
   const systemPrompt = `Você é um diretor de arte e editor de vídeo especialista em conteúdo digital.
 Sua tarefa é analisar a transcrição de um vídeo (com timestamps em segundos) e agrupá-la em cenas lógicas.
 Para cada cena, crie um prompt de imagem altamente descritivo em inglês para gerar uma ilustração flat design.
@@ -91,7 +99,7 @@ Regras:
 - Agrupe segmentos relacionados em cenas de 5 a 30 segundos
 - O prompt deve descrever visualmente o conceito falado, não o texto literal
 - Use estilo: flat design, cores vibrantes, moderno, minimalista
-- Retorne APENAS JSON válido, sem markdown ou texto extra
+- Retorne APENAS JSON válido, sem markdown ou texto extra${adaptiveInstructions}
 
 Formato de saída:
 [
@@ -152,11 +160,17 @@ Formato de saída:
 // ─── Step 3: Geração de Imagens ────────────────────────────────────────────────
 async function generateSceneIllustration(
   sceneId: number,
-  prompt: string
+  prompt: string,
+  styleCtx?: StyleContext
 ): Promise<{ url: string; key: string }> {
+  // Inject adaptive image style suffix if available
+  const styleSuffix = styleCtx?.isReliable && styleCtx.imageStyleSuffix
+    ? styleCtx.imageStyleSuffix
+    : "";
+
   const result = await withRetry(() =>
     generateImage({
-      prompt: `${prompt}. Flat design illustration, vibrant colors, modern minimalist style, high quality, no text.`,
+      prompt: `${prompt}. Flat design illustration, vibrant colors, modern minimalist style, high quality, no text${styleSuffix}.`,
     })
   );
 
@@ -172,7 +186,11 @@ async function generateSceneIllustration(
 }
 
 // ─── Orquestrador Principal ────────────────────────────────────────────────────
-export async function runVideoPipeline(projectId: number, audioUrl: string) {
+export async function runVideoPipeline(
+  projectId: number,
+  audioUrl: string,
+  styleCtx?: StyleContext
+) {
   let jobId: number | undefined;
 
   try {
@@ -199,7 +217,7 @@ export async function runVideoPipeline(projectId: number, audioUrl: string) {
     if (jobId) await updateProcessingJob(jobId, { step: "scene_analysis", progress: 35 });
 
     // ── Etapa 2: Análise e Geração de Cenas ───────────────────────────────────
-    const scenes = await analyzeAndGenerateScenes(segments);
+    const scenes = await analyzeAndGenerateScenes(segments, styleCtx);
 
     // Salvar cenas no banco
     await createVideoScenes(
@@ -234,7 +252,8 @@ export async function runVideoPipeline(projectId: number, audioUrl: string) {
       try {
         const { url, key } = await generateSceneIllustration(
           scene.id,
-          scene.illustrationPrompt
+          scene.illustrationPrompt,
+          styleCtx
         );
         await updateVideoScene(scene.id, {
           illustrationUrl: url,
@@ -274,6 +293,25 @@ export async function runVideoPipeline(projectId: number, audioUrl: string) {
       title: "✅ Vídeo processado com sucesso",
       content: `O projeto #${projectId} foi processado com sucesso. ${totalScenes} cenas geradas.`,
     });
+
+    // Trigger adaptive profile update asynchronously (non-blocking)
+    // We need the userId — fetch it from the project
+    try {
+      const { getDb } = await import("./db");
+      const { videoProjects } = await import("../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const db = await getDb();
+      if (db) {
+        const rows = await db.select({ userId: videoProjects.userId }).from(videoProjects).where(eq(videoProjects.id, projectId)).limit(1);
+        if (rows.length > 0) {
+          analyzeAndUpdateProfile(rows[0].userId).catch((err) =>
+            console.error("[Pipeline] Adaptive profile update failed:", err)
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[Pipeline] Could not trigger adaptive profile update:", err);
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[Pipeline] Fatal error for project ${projectId}:`, error);

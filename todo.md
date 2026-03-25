@@ -65,3 +65,17 @@
 - [ ] Atualizar landing page com nome, tagline e cores Kolhey
 - [ ] Atualizar sidebar/header do dashboard com logo Kolhey
 - [ ] Atualizar título da aba (VITE_APP_TITLE) para Kolhey
+
+## Sistema Adaptativo de Estilo
+- [x] Schema: tabela `user_style_profiles` (preferências aprendidas por usuário)
+- [x] Schema: tabela `edit_events` (log de cada edição feita pelo usuário)
+- [x] Schema: tabela `style_feedback` (avaliações de ilustrações aceitas/rejeitadas)
+- [x] Engine de análise de padrões de edição (server/adaptiveEngine.ts)
+- [x] Endpoint para registrar eventos de edição automaticamente
+- [x] Endpoint para atualizar perfil de estilo após análise
+- [x] Integração do perfil adaptativo no pipeline (injetar no prompt do Claude)
+- [x] Integração do perfil adaptativo na geração de imagens (injetar no prompt DALL-E)
+- [x] Painel de "Meu Estilo" no frontend com métricas aprendidas
+- [x] Indicador visual de confiança do sistema adaptativo
+- [x] Botão de feedback rápido (👍/👎) em cada cena gerada
+- [x] Testes do engine adaptativo (14 testes passando, 3 arquivos)

@@ -18,6 +18,14 @@ import {
 import { runVideoPipeline } from "./pipeline";
 import { generateImage } from "./_core/imageGeneration";
 import { nanoid } from "nanoid";
+import {
+  logEditEvent,
+  logStyleFeedback,
+  analyzeAndUpdateProfile,
+  getStyleContext,
+  getFullStyleProfile,
+  getRecentEditEvents,
+} from "./adaptiveEngine";
 
 // ─── Helper: verificar ownership ──────────────────────────────────────────────
 async function assertProjectOwner(projectId: number, userId: number) {
@@ -40,13 +48,8 @@ const videosRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      // Gerar chave única no S3
       const ext = input.filename.split(".").pop() ?? "mp4";
       const key = `videos/${ctx.user.id}/${nanoid(16)}.${ext}`;
-
-      // Usar storagePut com buffer vazio para obter a URL base
-      // O upload real será feito pelo frontend diretamente via URL presigned
-      // Aqui retornamos a chave para o frontend usar
       return { key, uploadEndpoint: `/api/upload-video?key=${encodeURIComponent(key)}` };
     }),
 
@@ -88,7 +91,7 @@ const videosRouter = router({
       return { ...project, scenes };
     }),
 
-  /** Inicia o pipeline de processamento */
+  /** Inicia o pipeline de processamento (com contexto adaptativo injetado) */
   startProcessing: protectedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
@@ -101,12 +104,24 @@ const videosRouter = router({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Vídeo não encontrado" });
       }
 
-      // Iniciar pipeline de forma assíncrona (não aguardar)
-      runVideoPipeline(input.id, project.originalVideoUrl).catch((err) => {
+      // Get style context to inject into pipeline
+      const styleCtx = await getStyleContext(ctx.user.id);
+
+      // Start pipeline asynchronously with style context
+      runVideoPipeline(input.id, project.originalVideoUrl, styleCtx).catch((err) => {
         console.error(`[Router] Pipeline failed for project ${input.id}:`, err);
       });
 
-      return { started: true };
+      return {
+        started: true,
+        adaptiveProfile: {
+          isActive: styleCtx.isReliable,
+          confidenceScore: styleCtx.confidenceScore,
+          message: styleCtx.isReliable
+            ? `Perfil de estilo aplicado (${styleCtx.confidenceScore}% de confiança)`
+            : "Processando com configurações padrão. Continue editando para personalizar.",
+        },
+      };
     }),
 
   /** Polling de status do processamento */
@@ -135,7 +150,7 @@ const videosRouter = router({
 
 // ─── Scenes Router ─────────────────────────────────────────────────────────────
 const scenesRouter = router({
-  /** Atualiza prompt ou texto de uma cena */
+  /** Atualiza prompt ou texto de uma cena — registra evento adaptativo */
   update: protectedProcedure
     .input(
       z.object({
@@ -143,6 +158,7 @@ const scenesRouter = router({
         projectId: z.number(),
         transcript: z.string().optional(),
         illustrationPrompt: z.string().optional(),
+        previousPrompt: z.string().optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -152,10 +168,24 @@ const scenesRouter = router({
       if (input.illustrationPrompt !== undefined)
         updateData.illustrationPrompt = input.illustrationPrompt;
       await updateVideoScene(input.sceneId, updateData);
+
+      // Log edit event for adaptive learning
+      if (input.illustrationPrompt !== undefined) {
+        await logEditEvent({
+          userId: ctx.user.id,
+          projectId: input.projectId,
+          sceneId: input.sceneId,
+          eventType: "prompt_edited",
+          previousValue: input.previousPrompt,
+          newValue: input.illustrationPrompt,
+          metadata: { field: "illustrationPrompt" },
+        });
+      }
+
       return { updated: true };
     }),
 
-  /** Regenera a ilustração de uma cena */
+  /** Regenera a ilustração de uma cena — registra evento adaptativo */
   regenerateImage: protectedProcedure
     .input(z.object({ sceneId: z.number(), projectId: z.number() }))
     .mutation(async ({ input, ctx }) => {
@@ -165,13 +195,23 @@ const scenesRouter = router({
       if (!scene.illustrationPrompt)
         throw new TRPCError({ code: "BAD_REQUEST", message: "Cena sem prompt de ilustração" });
 
+      // Log regeneration event
+      await logEditEvent({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        sceneId: input.sceneId,
+        eventType: "image_regenerated",
+        metadata: { prompt: scene.illustrationPrompt },
+      });
+
+      // Get style context to enhance the prompt
+      const styleCtx = await getStyleContext(ctx.user.id);
+      const enhancedPrompt = `${scene.illustrationPrompt}. Flat design illustration, vibrant colors, modern minimalist style, high quality, no text${styleCtx.imageStyleSuffix}.`;
+
       await updateVideoScene(input.sceneId, { illustrationStatus: "generating" });
 
       try {
-        const result = await generateImage({
-          prompt: `${scene.illustrationPrompt}. Flat design illustration, vibrant colors, modern minimalist style, high quality, no text.`,
-        });
-
+        const result = await generateImage({ prompt: enhancedPrompt });
         if (!result.url) throw new Error("Image generation returned no URL");
 
         const imageResponse = await fetch(result.url);
@@ -195,12 +235,47 @@ const scenesRouter = router({
       }
     }),
 
-  /** Exporta cenas em JSON compatível com Remotion */
+  /** Feedback de estilo (👍/👎) em uma ilustração */
+  submitFeedback: protectedProcedure
+    .input(
+      z.object({
+        sceneId: z.number(),
+        projectId: z.number(),
+        sentiment: z.enum(["positive", "negative"]),
+        comment: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const project = await assertProjectOwner(input.projectId, ctx.user.id);
+      const scene = await getSceneById(input.sceneId);
+
+      await logStyleFeedback({
+        userId: ctx.user.id,
+        sceneId: input.sceneId,
+        projectId: input.projectId,
+        sentiment: input.sentiment,
+        illustrationPrompt: scene?.illustrationPrompt ?? undefined,
+        illustrationUrl: scene?.illustrationUrl ?? undefined,
+        comment: input.comment,
+      });
+
+      return { recorded: true };
+    }),
+
+  /** Exporta cenas em JSON compatível com Remotion — registra aceitação */
   exportJson: protectedProcedure
     .input(z.object({ projectId: z.number() }))
     .query(async ({ input, ctx }) => {
       const project = await assertProjectOwner(input.projectId, ctx.user.id);
       const scenes = await getScenesByProject(input.projectId);
+
+      // Log that user accepted/exported all scenes (positive signal for adaptive learning)
+      await logEditEvent({
+        userId: ctx.user.id,
+        projectId: input.projectId,
+        eventType: "image_accepted",
+        metadata: { action: "export_json", scenesCount: scenes.length },
+      });
 
       return {
         project: {
@@ -229,6 +304,41 @@ const scenesRouter = router({
     }),
 });
 
+// ─── Adaptive Style Router ─────────────────────────────────────────────────────
+const adaptiveRouter = router({
+  /** Retorna o perfil de estilo aprendido do usuário */
+  getProfile: protectedProcedure.query(async ({ ctx }) => {
+    const profile = await getFullStyleProfile(ctx.user.id);
+    const styleCtx = await getStyleContext(ctx.user.id);
+    return {
+      profile,
+      context: styleCtx,
+      hasProfile: profile !== null,
+    };
+  }),
+
+  /** Histórico de edições do usuário */
+  getEditHistory: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(30) }))
+    .query(async ({ input, ctx }) => {
+      return getRecentEditEvents(ctx.user.id, input.limit);
+    }),
+
+  /** Dispara manualmente a análise e atualização do perfil */
+  refreshProfile: protectedProcedure.mutation(async ({ ctx }) => {
+    // Run analysis asynchronously
+    analyzeAndUpdateProfile(ctx.user.id).catch((err) => {
+      console.error(`[Router] Profile analysis failed for user ${ctx.user.id}:`, err);
+    });
+    return { started: true, message: "Análise do perfil iniciada. Isso pode levar alguns segundos." };
+  }),
+
+  /** Retorna o contexto de estilo atual (para debug/preview) */
+  getStyleContext: protectedProcedure.query(async ({ ctx }) => {
+    return getStyleContext(ctx.user.id);
+  }),
+});
+
 // ─── App Router ────────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -242,6 +352,7 @@ export const appRouter = router({
   }),
   videos: videosRouter,
   scenes: scenesRouter,
+  adaptive: adaptiveRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -4,6 +4,7 @@ import type { TrpcContext } from "./_core/context";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────────
 vi.mock("./db", () => ({
+  getDb: vi.fn().mockResolvedValue(null),
   getVideoProjectsByUser: vi.fn().mockResolvedValue([
     {
       id: 1,
@@ -56,6 +57,21 @@ vi.mock("./db", () => ({
   updateProcessingJob: vi.fn().mockResolvedValue(undefined),
   getLatestJobByProject: vi.fn().mockResolvedValue(undefined),
   createVideoScenes: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("./adaptiveEngine", () => ({
+  logEditEvent: vi.fn().mockResolvedValue(undefined),
+  logStyleFeedback: vi.fn().mockResolvedValue(undefined),
+  analyzeAndUpdateProfile: vi.fn().mockResolvedValue(undefined),
+  getStyleContext: vi.fn().mockResolvedValue({
+    sceneAnalysisContext: "",
+    imageStyleSuffix: "",
+    styleSummary: "No profile yet",
+    confidenceScore: 0,
+    isReliable: false,
+  }),
+  getFullStyleProfile: vi.fn().mockResolvedValue(null),
+  getRecentEditEvents: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("./pipeline", () => ({
@@ -130,7 +146,9 @@ describe("videos.startProcessing", () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.videos.startProcessing({ id: 1 });
-    expect(result).toEqual({ started: true });
+    expect(result.started).toBe(true);
+    expect(result.adaptiveProfile).toBeDefined();
+    expect(result.adaptiveProfile.isActive).toBe(false);
   });
 });
 

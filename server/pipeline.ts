@@ -85,11 +85,17 @@ async function transcribeVideo(audioUrl: string): Promise<TranscriptSegment[]> {
 // ─── Step 2: Análise Claude → Cenas + Prompts ─────────────────────────────────
 async function analyzeAndGenerateScenes(
   segments: TranscriptSegment[],
-  styleCtx?: StyleContext
+  styleCtx?: StyleContext,
+  projectDescription?: string
 ): Promise<SceneData[]> {
   // Inject adaptive style context if available
   const adaptiveInstructions = styleCtx?.isReliable && styleCtx.sceneAnalysisContext
     ? `\n\nPerfil de estilo do usuário (aplique estas preferências):\n${styleCtx.sceneAnalysisContext}`
+    : "";
+
+  // Inject project description context if provided
+  const descriptionContext = projectDescription?.trim()
+    ? `\n\nContexto do projeto fornecido pelo usuário: "${projectDescription.trim()}"\nUse este contexto para criar prompts de ilustração mais precisos e alinhados ao objetivo do vídeo.`
     : "";
 
   const systemPrompt = `Você é um diretor de arte e editor de vídeo especialista em conteúdo digital.
@@ -100,7 +106,7 @@ Regras:
 - Agrupe segmentos relacionados em cenas de 5 a 30 segundos
 - O prompt deve descrever visualmente o conceito falado, não o texto literal
 - Use estilo: flat design, cores vibrantes, moderno, minimalista
-- Retorne APENAS JSON válido, sem markdown ou texto extra${adaptiveInstructions}
+- Retorne APENAS JSON válido, sem markdown ou texto extra${adaptiveInstructions}${descriptionContext}
 
 Formato de saída:
 [
@@ -190,7 +196,8 @@ async function generateSceneIllustration(
 export async function runVideoPipeline(
   projectId: number,
   audioUrl: string,
-  styleCtx?: StyleContext
+  styleCtx?: StyleContext,
+  projectDescription?: string
 ) {
   let jobId: number | undefined;
 
@@ -218,7 +225,7 @@ export async function runVideoPipeline(
     if (jobId) await updateProcessingJob(jobId, { step: "scene_analysis", progress: 35 });
 
     // ── Etapa 2: Análise e Geração de Cenas ───────────────────────────────────
-    const scenes = await analyzeAndGenerateScenes(segments, styleCtx);
+    const scenes = await analyzeAndGenerateScenes(segments, styleCtx, projectDescription);
 
     // Salvar cenas no banco
     await createVideoScenes(

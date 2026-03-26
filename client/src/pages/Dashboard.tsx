@@ -230,17 +230,20 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const { data: projects, isLoading, refetch } = trpc.videos.list.useQuery(undefined, {
-    enabled: isAuthenticated,
-    refetchInterval: (query) => {
-      const data = query.state.data;
-      if (!data) return false;
-      const hasProcessing = (data as VideoProject[]).some(
-        (p) => p.status === "processing" || p.status === "uploading"
-      );
-      return hasProcessing ? 3000 : false;
-    },
-  });
+  const { data: projectsData, isLoading, refetch } = trpc.videos.list.useQuery(
+    { limit: 50, status: "all" },
+    {
+      enabled: isAuthenticated,
+      refetchInterval: (query) => {
+        const data = query.state.data;
+        if (!data) return false;
+        const hasProcessing = data.items.some(
+          (p) => p.status === "processing" || p.status === "uploading"
+        );
+        return hasProcessing ? 3000 : false;
+      },
+    }
+  );
 
   const deleteMutation = trpc.videos.delete.useMutation({
     onSuccess: () => { toast.success("Projeto deletado com sucesso"); refetch(); },
@@ -260,7 +263,7 @@ export default function Dashboard() {
     return null;
   }
 
-  const allProjects = (projects as VideoProject[] | undefined) ?? [];
+  const allProjects: VideoProject[] = (projectsData?.items ?? []) as VideoProject[];
   const projectList = allProjects.filter((p) => {
     const matchSearch = !search || p.title.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || p.status === statusFilter;

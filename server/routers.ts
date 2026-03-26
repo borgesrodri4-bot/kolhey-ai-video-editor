@@ -8,6 +8,7 @@ import { storagePut } from "./storage";
 import {
   createVideoProject,
   getVideoProjectsByUser,
+  getVideoProjectsByUserPaginated,
   getVideoProjectById,
   updateVideoProject,
   deleteVideoProject,
@@ -63,6 +64,7 @@ const videosRouter = router({
     .input(
       z.object({
         title: z.string().min(1).max(255),
+        description: z.string().max(1000).optional(),
         videoKey: z.string(),
         videoUrl: z.string().url(),
         fileSizeBytes: z.number(),
@@ -73,6 +75,7 @@ const videosRouter = router({
       const result = await createVideoProject({
         userId: ctx.user.id,
         title: input.title,
+        description: input.description,
         status: "pending",
         originalVideoUrl: input.videoUrl,
         originalVideoKey: input.videoKey,
@@ -84,10 +87,24 @@ const videosRouter = router({
       return { id: insertId };
     }),
 
-  /** Lista projetos do usuário */
-  list: protectedProcedure.query(async ({ ctx }) => {
-    return getVideoProjectsByUser(ctx.user.id);
-  }),
+  /** Lista projetos do usuário com paginação cursor-based */
+  list: protectedProcedure
+    .input(
+      z.object({
+        cursor: z.number().optional(), // ID do último item da página anterior
+        limit: z.number().min(1).max(50).default(20),
+        status: z.enum(["all", "pending", "processing", "completed", "failed"]).default("all"),
+        search: z.string().optional(),
+      })
+    )
+    .query(async ({ input, ctx }) => {
+      return getVideoProjectsByUserPaginated(ctx.user.id, {
+        cursor: input.cursor,
+        limit: input.limit,
+        status: input.status === "all" ? undefined : input.status,
+        search: input.search,
+      });
+    }),
 
   /** Busca projeto por ID com suas cenas */
   getById: protectedProcedure
@@ -114,8 +131,8 @@ const videosRouter = router({
       // Get style context to inject into pipeline
       const styleCtx = await getStyleContext(ctx.user.id);
 
-      // Start pipeline asynchronously with style context
-      runVideoPipeline(input.id, project.originalVideoUrl, styleCtx).catch((err) => {
+      // Start pipeline asynchronously with style context and project description
+      runVideoPipeline(input.id, project.originalVideoUrl, styleCtx, project.description ?? undefined).catch((err) => {
         console.error(`[Router] Pipeline failed for project ${input.id}:`, err);
       });
 

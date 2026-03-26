@@ -38,6 +38,7 @@ async function startServer() {
   registerOAuthRoutes(app);
 
   // ── Rota de upload de vídeo (recebe binário e salva no S3) ──────────────────
+  const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
   app.post("/api/upload-video", express.raw({ type: "*/*", limit: "520mb" }), async (req, res) => {
     try {
       const key = req.query.key as string;
@@ -45,8 +46,29 @@ async function startServer() {
       const contentType = (req.headers["content-type"] as string) ?? "video/mp4";
       const buffer = req.body as Buffer;
       if (!buffer || buffer.length === 0) { res.status(400).json({ error: "Empty file body" }); return; }
+
+      // Validate file size on server side
+      if (buffer.length > MAX_VIDEO_SIZE_BYTES) {
+        const sizeMB = (buffer.length / (1024 * 1024)).toFixed(1);
+        res.status(413).json({
+          error: `Arquivo muito grande (${sizeMB} MB). O limite máximo é 500 MB.`,
+          code: "FILE_TOO_LARGE",
+          maxSizeMB: 500,
+          fileSizeMB: parseFloat(sizeMB),
+        });
+        return;
+      }
+
+      // Validate that it's a video file
+      const allowedTypes = ["video/mp4", "video/quicktime", "video/x-msvideo", "video/webm", "video/mpeg"];
+      const isVideoKey = key.match(/\.(mp4|mov|avi|webm|mpeg|mpg)$/i);
+      if (!isVideoKey) {
+        res.status(400).json({ error: "Formato de arquivo não suportado. Use MP4, MOV, AVI ou WebM.", code: "INVALID_FORMAT" });
+        return;
+      }
+
       const { url } = await storagePut(key, buffer, contentType);
-      res.json({ url, key });
+      res.json({ url, key, sizeMB: parseFloat((buffer.length / (1024 * 1024)).toFixed(1)) });
     } catch (err) {
       console.error("[Upload] Error:", err);
       res.status(500).json({ error: "Upload failed" });

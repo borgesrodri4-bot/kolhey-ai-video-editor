@@ -89,6 +89,66 @@ export async function getVideoProjectsByUser(userId: number) {
     .orderBy(desc(videoProjects.createdAt));
 }
 
+export async function getVideoProjectsByUserPaginated(
+  userId: number,
+  opts: {
+    cursor?: number;
+    limit?: number;
+    status?: string;
+    search?: string;
+  } = {}
+) {
+  const db = await getDb();
+  if (!db) return { items: [], nextCursor: undefined, total: 0 };
+
+  const limit = opts.limit ?? 20;
+
+  // Build WHERE conditions
+  const conditions = [eq(videoProjects.userId, userId)];
+  if (opts.status) {
+    conditions.push(eq(videoProjects.status, opts.status as "pending" | "uploading" | "processing" | "completed" | "failed"));
+  }
+  if (opts.search) {
+    conditions.push(sql`LOWER(${videoProjects.title}) LIKE ${`%${opts.search.toLowerCase()}%`}`);
+  }
+  if (opts.cursor) {
+    // Cursor-based: fetch items created before the cursor item
+    conditions.push(sql`${videoProjects.id} < ${opts.cursor}`);
+  }
+
+  const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+
+  // Fetch limit+1 to detect if there's a next page
+  const items = await db
+    .select()
+    .from(videoProjects)
+    .where(whereClause)
+    .orderBy(desc(videoProjects.id))
+    .limit(limit + 1);
+
+  const hasMore = items.length > limit;
+  const pageItems = hasMore ? items.slice(0, limit) : items;
+  const nextCursor = hasMore ? pageItems[pageItems.length - 1]?.id : undefined;
+
+  // Get total count (without cursor for accurate count)
+  const countConditions = [eq(videoProjects.userId, userId)];
+  if (opts.status) {
+    countConditions.push(eq(videoProjects.status, opts.status as "pending" | "uploading" | "processing" | "completed" | "failed"));
+  }
+  if (opts.search) {
+    countConditions.push(sql`LOWER(${videoProjects.title}) LIKE ${`%${opts.search.toLowerCase()}%`}`);
+  }
+  const countWhere = countConditions.length === 1 ? countConditions[0] : and(...countConditions);
+  const [totalRow] = await db.select({ count: count() }).from(videoProjects).where(countWhere);
+
+  return {
+    items: pageItems,
+    nextCursor,
+    total: totalRow?.count ?? 0,
+    hasMore,
+  };
+}
+
 export async function getVideoProjectById(id: number): Promise<VideoProject | undefined> {
   const db = await getDb();
   if (!db) return undefined;

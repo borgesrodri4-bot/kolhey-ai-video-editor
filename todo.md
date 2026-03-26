@@ -103,3 +103,12 @@
 - [ ] Revisar fluxo de exportação JSON (compatibilidade com Remotion)
 - [ ] Revisar todos os estados de loading/erro/empty no frontend
 - [ ] Corrigir todos os problemas encontrados
+
+## Melhorias Adicionais (Fase Final)
+- [ ] Limite de 500MB no servidor (endpoint /api/upload-video)
+- [ ] Paginação no endpoint videos.list (cursor-based, 20 por página)
+- [ ] Campo de descrição no schema video_projects
+- [ ] Campo de descrição na página de Upload
+- [ ] Injeção da descrição no prompt do Claude (pipeline)
+- [ ] Paginação no frontend Dashboard (botão "Carregar mais")
+- [ ] Testes atualizados para paginação e descrição

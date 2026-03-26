@@ -1,63 +1,80 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────────
-vi.mock("./db", () => ({
-  getDb: vi.fn().mockResolvedValue(null),
-  getVideoProjectsByUser: vi.fn().mockResolvedValue([
-    {
-      id: 1,
-      userId: 1,
-      title: "Test Video",
-      status: "pending",
-      progress: 0,
-      scenesCount: 0,
-      createdAt: new Date("2025-01-01"),
-      updatedAt: new Date("2025-01-01"),
-    },
-  ]),
-  getVideoProjectById: vi.fn().mockResolvedValue({
+// NOTE: vi.mock factories are hoisted to the top of the file by Vitest.
+// Variables defined outside the factory are NOT accessible inside it.
+// All fixture data must be defined inline inside the factory function.
+
+vi.mock("./db", () => {
+  const project = {
     id: 1,
     userId: 1,
     title: "Test Video",
+    description: "A test video about AI",
     status: "pending",
     progress: 0,
     scenesCount: 0,
     originalVideoUrl: "https://example.com/video.mp4",
+    visualStyle: "auto",
     createdAt: new Date("2025-01-01"),
     updatedAt: new Date("2025-01-01"),
-  }),
-  createVideoProject: vi.fn().mockResolvedValue({ insertId: 42 }),
-  deleteVideoProject: vi.fn().mockResolvedValue(undefined),
-  getScenesByProject: vi.fn().mockResolvedValue([
-    {
-      id: 1,
-      projectId: 1,
-      sceneOrder: 0,
-      startTime: 0,
-      endTime: 10,
-      transcript: "Hello world",
-      illustrationPrompt: "A flat design illustration",
-      illustrationUrl: "https://example.com/image.png",
-      illustrationStatus: "completed",
-    },
-  ]),
-  updateVideoScene: vi.fn().mockResolvedValue(undefined),
-  getSceneById: vi.fn().mockResolvedValue({
+  };
+
+  const scene = {
     id: 1,
     projectId: 1,
+    sceneOrder: 0,
+    startTime: 0,
+    endTime: 10,
+    transcript: "Hello world",
     illustrationPrompt: "A flat design illustration",
-    illustrationStatus: "pending",
-  }),
-  updateVideoProject: vi.fn().mockResolvedValue(undefined),
-  upsertUser: vi.fn().mockResolvedValue(undefined),
-  getUserByOpenId: vi.fn().mockResolvedValue(undefined),
-  createProcessingJob: vi.fn().mockResolvedValue({ insertId: 1 }),
-  updateProcessingJob: vi.fn().mockResolvedValue(undefined),
-  getLatestJobByProject: vi.fn().mockResolvedValue(undefined),
-  createVideoScenes: vi.fn().mockResolvedValue(undefined),
-}));
+    illustrationUrl: "https://example.com/image.png",
+    illustrationStatus: "completed",
+  };
+
+  return {
+    getDb: vi.fn().mockResolvedValue(null),
+    // Paginado (novo endpoint)
+    getVideoProjectsByUserPaginated: vi.fn().mockResolvedValue({
+      items: [project],
+      nextCursor: undefined,
+      total: 1,
+      hasMore: false,
+    }),
+    // Legado (mantido para compatibilidade interna)
+    getVideoProjectsByUser: vi.fn().mockResolvedValue([project]),
+    getVideoProjectById: vi.fn().mockResolvedValue(project),
+    createVideoProject: vi.fn().mockResolvedValue({ insertId: 42 }),
+    deleteVideoProject: vi.fn().mockResolvedValue(undefined),
+    getScenesByProject: vi.fn().mockResolvedValue([scene]),
+    updateVideoScene: vi.fn().mockResolvedValue(undefined),
+    getSceneById: vi.fn().mockResolvedValue({
+      id: 1,
+      projectId: 1,
+      illustrationPrompt: "A flat design illustration",
+      illustrationStatus: "pending",
+    }),
+    updateVideoProject: vi.fn().mockResolvedValue(undefined),
+    upsertUser: vi.fn().mockResolvedValue(undefined),
+    getUserByOpenId: vi.fn().mockResolvedValue(undefined),
+    createProcessingJob: vi.fn().mockResolvedValue({ insertId: 1 }),
+    updateProcessingJob: vi.fn().mockResolvedValue(undefined),
+    getLatestJobByProject: vi.fn().mockResolvedValue(undefined),
+    createVideoScenes: vi.fn().mockResolvedValue(undefined),
+    reorderScenes: vi.fn().mockResolvedValue(undefined),
+    getAllUsersAdmin: vi.fn().mockResolvedValue([]),
+    getAllProjectsAdmin: vi.fn().mockResolvedValue([]),
+    getAdminStats: vi.fn().mockResolvedValue({
+      totalUsers: 0,
+      totalProjects: 0,
+      completedProjects: 0,
+      failedProjects: 0,
+    }),
+    getProcessingsByDay: vi.fn().mockResolvedValue([]),
+  };
+});
 
 vi.mock("./adaptiveEngine", () => ({
   logEditEvent: vi.fn().mockResolvedValue(undefined),
@@ -79,7 +96,10 @@ vi.mock("./pipeline", () => ({
 }));
 
 vi.mock("./storage", () => ({
-  storagePut: vi.fn().mockResolvedValue({ url: "https://cdn.example.com/file.png", key: "test-key" }),
+  storagePut: vi.fn().mockResolvedValue({
+    url: "https://cdn.example.com/file.png",
+    key: "test-key",
+  }),
 }));
 
 vi.mock("./_core/imageGeneration", () => ({
@@ -107,12 +127,30 @@ function createAuthContext(): TrpcContext {
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 describe("videos.list", () => {
-  it("returns list of projects for authenticated user", async () => {
+  it("returns paginated projects for authenticated user", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
-    const result = await caller.videos.list();
-    expect(Array.isArray(result)).toBe(true);
-    expect(result[0]).toMatchObject({ title: "Test Video", status: "pending" });
+    const result = await caller.videos.list({ limit: 20, status: "all" });
+    expect(result).toHaveProperty("items");
+    expect(result).toHaveProperty("total");
+    expect(result).toHaveProperty("hasMore");
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items[0]).toMatchObject({ title: "Test Video", status: "pending" });
+  });
+
+  it("accepts status filter", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.videos.list({ limit: 10, status: "completed" });
+    expect(result).toHaveProperty("items");
+  });
+
+  it("accepts cursor for pagination", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.videos.list({ limit: 10, status: "all", cursor: 5 });
+    expect(result).toHaveProperty("items");
+    expect(result).toHaveProperty("hasMore");
   });
 });
 
@@ -125,6 +163,20 @@ describe("videos.create", () => {
       videoKey: "videos/user1/abc123.mp4",
       videoUrl: "https://cdn.example.com/videos/user1/abc123.mp4",
       fileSizeBytes: 1024 * 1024 * 50,
+    });
+    expect(result).toHaveProperty("id", 42);
+  });
+
+  it("creates a project with description and visualStyle", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.videos.create({
+      title: "Video with Description",
+      description: "A video about AI and machine learning for developers",
+      videoKey: "videos/user1/def456.mp4",
+      videoUrl: "https://cdn.example.com/videos/user1/def456.mp4",
+      fileSizeBytes: 1024 * 1024 * 100,
+      visualStyle: "watercolor",
     });
     expect(result).toHaveProperty("id", 42);
   });
@@ -142,7 +194,7 @@ describe("videos.getById", () => {
 });
 
 describe("videos.startProcessing", () => {
-  it("starts pipeline and returns started: true", async () => {
+  it("starts pipeline and returns started: true with adaptive profile", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const result = await caller.videos.startProcessing({ id: 1 });
@@ -176,7 +228,9 @@ describe("auth.logout", () => {
   it("clears session cookie and returns success", async () => {
     const ctx = createAuthContext();
     const clearedCookies: string[] = [];
-    ctx.res.clearCookie = (name: string) => { clearedCookies.push(name); };
+    ctx.res.clearCookie = (name: string) => {
+      clearedCookies.push(name);
+    };
     const caller = appRouter.createCaller(ctx);
     const result = await caller.auth.logout();
     expect(result).toEqual({ success: true });

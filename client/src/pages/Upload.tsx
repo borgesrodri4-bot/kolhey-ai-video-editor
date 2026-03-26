@@ -38,6 +38,7 @@ export default function Upload() {
 
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("auto");
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -120,6 +121,7 @@ export default function Upload() {
       setUploadState("creating");
       const { id } = await createProjectMutation.mutateAsync({
         title: title.trim(),
+        description: description.trim() || undefined,
         videoKey: key,
         videoUrl,
         fileSizeBytes: file.size,
@@ -257,7 +259,7 @@ export default function Upload() {
         </div>
 
         {/* Title input */}
-        <div className="mb-6">
+        <div className="mb-4">
           <Label htmlFor="title" className="text-sm font-medium mb-2 block">
             Título do projeto
           </Label>
@@ -269,6 +271,25 @@ export default function Upload() {
             disabled={isProcessing || uploadState === "done"}
             className="bg-card border-border"
           />
+        </div>
+
+        {/* Description input */}
+        <div className="mb-6">
+          <Label htmlFor="description" className="text-sm font-medium mb-2 block">
+            Descrição / contexto
+            <span className="text-muted-foreground font-normal ml-1">(opcional)</span>
+          </Label>
+          <textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Descreva o conteúdo do vídeo, o público-alvo ou qualquer contexto que ajude a IA a gerar melhores cenas e ilustrações..."
+            disabled={isProcessing || uploadState === "done"}
+            maxLength={1000}
+            rows={3}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          />
+          <p className="text-xs text-muted-foreground mt-1 text-right">{description.length}/1000</p>
         </div>
 
         {/* Visual Style Selection */}

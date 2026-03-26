@@ -36,6 +36,13 @@
       "when": 1774484079456,
       "tag": "0004_slow_blur",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1774484672360,
+      "tag": "0005_purple_star_brand",
+      "breakpoints": true
     }
   ]
 }

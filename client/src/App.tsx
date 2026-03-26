@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Upload from "./pages/Upload";
 import ProjectDetail from "./pages/ProjectDetail";
 import AdaptiveProfile from "./pages/AdaptiveProfile";
+import ProjectVersions from "./pages/ProjectVersions";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/upload" component={Upload} />
       <Route path="/projects/:id" component={ProjectDetail} />
+      <Route path="/projects/:id/versions" component={ProjectVersions} />
       <Route path="/adaptive-profile" component={AdaptiveProfile} />
       <Route path="/admin" component={Admin} />
       <Route path="/404" component={NotFound} />

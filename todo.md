@@ -112,3 +112,14 @@
 - [ ] Injeção da descrição no prompt do Claude (pipeline)
 - [ ] Paginação no frontend Dashboard (botão "Carregar mais")
 - [ ] Testes atualizados para paginação e descrição
+
+## Fase Final - Novas Funcionalidades
+- [x] Suporte a URL do YouTube (extração de áudio via @distube/ytdl-core)
+- [x] Campo de URL do YouTube no upload com validação e preview
+- [x] Templates de prompt por nicho (Aula, Pitch, Motivacional, Tutorial, Storytelling, Demo, Kolhey)
+- [x] Seleção de template preenche automaticamente a descrição e estilo visual
+- [x] Schema: tabela `project_versions` para histórico de versões
+- [x] Backend: endpoints para criar, listar, ativar, restaurar e reprocessar versões
+- [x] Frontend: página `/projects/:id/versions` com histórico e comparação de versões
+- [x] Botão "Versões" na página de detalhe do projeto
+- [x] 31 testes passando (4 arquivos), zero erros TypeScript

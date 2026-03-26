@@ -11,6 +11,7 @@ import {
   ArrowLeft, Loader2, Play, RefreshCw, Download, Edit3, Check, X,
   ImageIcon, Clock, CheckCircle2, XCircle, AlertCircle, ChevronRight,
   Film, ThumbsUp, ThumbsDown, GripVertical, Copy, ExternalLink, Code2,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { KolheyWordmark } from "@/components/KolheyLogo";
@@ -519,6 +520,15 @@ export default function ProjectDetail() {
                 <Download className="w-4 h-4 mr-2" /> Exportar JSON
               </Button>
             )}
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="bg-transparent"
+              onClick={() => navigate(`/projects/${projectId}/versions`)}
+            >
+              <History className="w-4 h-4 mr-2" /> Versões
+            </Button>
           </div>
         </div>
       </header>

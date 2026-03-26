@@ -11,6 +11,8 @@ import {
   InsertProcessingJob,
   VideoProject,
   VideoScene,
+  projectVersions,
+  InsertProjectVersion,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -298,4 +300,55 @@ export async function getProcessingsByDay(days = 14) {
     .groupBy(sql`DATE(createdAt)`)
     .orderBy(sql`DATE(createdAt)`);
   return rows;
+}
+
+// ─── Project Versions ──────────────────────────────────────────────────────────
+
+export async function createProjectVersion(data: InsertProjectVersion) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(projectVersions).values(data);
+  return result;
+}
+
+export async function getProjectVersions(projectId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(projectVersions)
+    .where(eq(projectVersions.projectId, projectId))
+    .orderBy(desc(projectVersions.createdAt));
+}
+
+export async function getProjectVersionById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(projectVersions).where(eq(projectVersions.id, id)).limit(1);
+  return result[0];
+}
+
+export async function setActiveProjectVersion(projectId: number, versionId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Deactivate all versions for this project
+  await db
+    .update(projectVersions)
+    .set({ isActive: "no" })
+    .where(eq(projectVersions.projectId, projectId));
+  // Activate the selected version
+  await db
+    .update(projectVersions)
+    .set({ isActive: "yes" })
+    .where(eq(projectVersions.id, versionId));
+}
+
+export async function countProjectVersions(projectId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const [row] = await db
+    .select({ count: count() })
+    .from(projectVersions)
+    .where(eq(projectVersions.projectId, projectId));
+  return row?.count ?? 0;
 }

@@ -10,6 +10,7 @@ import { getLoginUrl } from "@/const";
 import {
   Upload as UploadIcon, Film, X, ArrowLeft, Loader2,
   CheckCircle2, AlertCircle, Sparkles, Brain, Palette,
+  Youtube, Link2, FileVideo, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { KolheyWordmark } from "@/components/KolheyLogo";
@@ -32,26 +33,49 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+type InputMode = "file" | "youtube";
+
 export default function Upload() {
   const { isAuthenticated, loading } = useAuth();
   const [, navigate] = useLocation();
 
+  // Input mode: file upload or YouTube URL
+  const [inputMode, setInputMode] = useState<InputMode>("file");
+
+  // File upload state
   const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // YouTube state
+  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeInfo, setYoutubeInfo] = useState<{
+    videoId: string;
+    title: string;
+    durationSeconds: number;
+    thumbnailUrl: string;
+  } | null>(null);
+  const [youtubeLoading, setYoutubeLoading] = useState(false);
+
+  // Common state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("auto");
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedNiche, setSelectedNiche] = useState<string | null>(null);
+  const [showNicheTemplates, setShowNicheTemplates] = useState(false);
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "creating" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: adaptiveProfile } = trpc.adaptive.getProfile.useQuery(undefined, {
     enabled: isAuthenticated,
   });
+  const { data: nicheTemplates } = trpc.niche.list.useQuery();
 
   const getUploadUrlMutation = trpc.videos.getUploadUrl.useMutation();
   const createProjectMutation = trpc.videos.create.useMutation();
+  const youtubeGetInfoMutation = trpc.youtube.getInfo.useMutation();
+  const youtubeCreateProjectMutation = trpc.youtube.createProject.useMutation();
 
   const validateFile = (f: File): string | null => {
     if (!ALLOWED_TYPES.includes(f.type) && !f.name.endsWith(".mp4")) {
@@ -82,7 +106,43 @@ export default function Upload() {
   const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
   const onDragLeave = () => setIsDragging(false);
 
-  const handleUpload = async () => {
+  const handleYoutubeValidate = async () => {
+    if (!youtubeUrl.trim()) return;
+    setYoutubeLoading(true);
+    try {
+      const info = await youtubeGetInfoMutation.mutateAsync({ url: youtubeUrl.trim() });
+      setYoutubeInfo(info);
+      if (!title) setTitle(info.title);
+      toast.success("Vídeo encontrado: " + info.title);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "URL inválida";
+      toast.error(msg);
+      setYoutubeInfo(null);
+    } finally {
+      setYoutubeLoading(false);
+    }
+  };
+
+  const handleNicheSelect = (nicheId: string) => {
+    if (selectedNiche === nicheId) {
+      setSelectedNiche(null);
+      return;
+    }
+    const template = nicheTemplates?.find((t) => t.id === nicheId);
+    if (!template) return;
+    setSelectedNiche(nicheId);
+    // Inject template context into description if empty
+    if (!description.trim()) {
+      setDescription(template.contextPrompt);
+    }
+    // Suggest visual style
+    if (selectedStyle === "auto" && template.suggestedStyle !== "auto") {
+      setSelectedStyle(template.suggestedStyle);
+    }
+    toast.success(`Template "${template.label}" aplicado`);
+  };
+
+  const handleUploadFile = async () => {
     if (!file || !title.trim()) {
       toast.error("Selecione um arquivo e defina um título");
       return;
@@ -139,6 +199,34 @@ export default function Upload() {
     }
   };
 
+  const handleYoutubeCreate = async () => {
+    if (!youtubeInfo || !title.trim()) {
+      toast.error("Valide o URL do YouTube e defina um título");
+      return;
+    }
+
+    try {
+      setUploadState("creating");
+      setErrorMsg("");
+
+      const { id } = await youtubeCreateProjectMutation.mutateAsync({
+        youtubeUrl: youtubeUrl.trim(),
+        title: title.trim(),
+        description: description.trim() || undefined,
+        visualStyle: selectedStyle,
+      });
+
+      setUploadState("done");
+      toast.success("Projeto criado! Redirecionando...");
+      setTimeout(() => navigate(`/projects/${id}`), 1200);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      setErrorMsg(msg);
+      setUploadState("error");
+      toast.error("Falha ao criar projeto: " + msg);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -155,6 +243,9 @@ export default function Upload() {
   const isProcessing = uploadState === "uploading" || uploadState === "creating";
   const hasProfile = adaptiveProfile?.hasProfile === true;
   const confidence = hasProfile ? Math.round((adaptiveProfile?.context?.confidenceScore ?? 0)) : 0;
+  const canSubmit = inputMode === "file"
+    ? !!file && !!title.trim() && !isProcessing && uploadState !== "done"
+    : !!youtubeInfo && !!title.trim() && !isProcessing && uploadState !== "done";
 
   return (
     <div className="min-h-screen bg-background">
@@ -170,7 +261,6 @@ export default function Upload() {
               <span className="text-muted-foreground text-sm">/ Novo Projeto</span>
             </div>
           </div>
-          {/* Badge de perfil adaptativo */}
           {hasProfile && confidence > 0 && (
             <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 gap-1.5">
               <Brain className="w-3 h-3" />
@@ -183,10 +273,10 @@ export default function Upload() {
       <div className="container py-10 max-w-2xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Enviar Vídeo
+            Novo Projeto
           </h1>
           <p className="text-muted-foreground">
-            Faça upload de um vídeo MP4 para iniciar o processamento com IA
+            Envie um vídeo MP4 ou cole um link do YouTube para iniciar o processamento com IA
           </p>
         </div>
 
@@ -203,60 +293,139 @@ export default function Upload() {
           </div>
         )}
 
-        {/* Drop Zone */}
-        <div
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onClick={() => !file && fileInputRef.current?.click()}
-          className={`
-            relative rounded-2xl border-2 border-dashed transition-all cursor-pointer mb-6
-            ${isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/50 hover:bg-card/50"}
-            ${file ? "cursor-default" : ""}
-          `}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/mp4,.mp4"
-            className="hidden"
-            onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
-          />
-
-          {!file ? (
-            <div className="p-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <UploadIcon className="w-8 h-8 text-primary" />
-              </div>
-              <p className="font-semibold text-lg mb-1">
-                {isDragging ? "Solte o arquivo aqui" : "Arraste um vídeo MP4"}
-              </p>
-              <p className="text-muted-foreground text-sm">
-                ou clique para selecionar · máximo 500MB
-              </p>
-            </div>
-          ) : (
-            <div className="p-6 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Film className="w-6 h-6 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium truncate">{file.name}</p>
-                <p className="text-muted-foreground text-sm">{formatBytes(file.size)}</p>
-              </div>
-              {!isProcessing && uploadState !== "done" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-shrink-0"
-                  onClick={(e) => { e.stopPropagation(); setFile(null); setTitle(""); setUploadState("idle"); }}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-          )}
+        {/* Input Mode Tabs */}
+        <div className="mb-6 flex gap-2 p-1 bg-muted rounded-xl">
+          <button
+            onClick={() => { setInputMode("file"); setYoutubeInfo(null); }}
+            disabled={isProcessing}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+              inputMode === "file"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <FileVideo className="w-4 h-4" />
+            Upload MP4
+          </button>
+          <button
+            onClick={() => { setInputMode("youtube"); setFile(null); }}
+            disabled={isProcessing}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium transition-all ${
+              inputMode === "youtube"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Youtube className="w-4 h-4" />
+            YouTube
+          </button>
         </div>
+
+        {/* File Upload Zone */}
+        {inputMode === "file" && (
+          <div
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onClick={() => !file && fileInputRef.current?.click()}
+            className={`
+              relative rounded-2xl border-2 border-dashed transition-all cursor-pointer mb-6
+              ${isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-border hover:border-primary/50 hover:bg-card/50"}
+              ${file ? "cursor-default" : ""}
+            `}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/mp4,.mp4"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+            />
+            {!file ? (
+              <div className="p-16 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <UploadIcon className="w-8 h-8 text-primary" />
+                </div>
+                <p className="font-semibold text-lg mb-1">
+                  {isDragging ? "Solte o arquivo aqui" : "Arraste um vídeo MP4"}
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  ou clique para selecionar · máximo 500MB
+                </p>
+              </div>
+            ) : (
+              <div className="p-6 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Film className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{file.name}</p>
+                  <p className="text-muted-foreground text-sm">{formatBytes(file.size)}</p>
+                </div>
+                {!isProcessing && uploadState !== "done" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-shrink-0"
+                    onClick={(e) => { e.stopPropagation(); setFile(null); setTitle(""); setUploadState("idle"); }}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* YouTube URL Input */}
+        {inputMode === "youtube" && (
+          <div className="mb-6">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  value={youtubeUrl}
+                  onChange={(e) => { setYoutubeUrl(e.target.value); setYoutubeInfo(null); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleYoutubeValidate()}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  disabled={isProcessing}
+                  className="pl-9 bg-card border-border"
+                />
+              </div>
+              <Button
+                onClick={handleYoutubeValidate}
+                disabled={!youtubeUrl.trim() || youtubeLoading || isProcessing}
+                variant="outline"
+                className="bg-transparent"
+              >
+                {youtubeLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Validar"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Suporta links do YouTube públicos. Limite: 15 minutos de duração.
+            </p>
+
+            {/* YouTube video preview */}
+            {youtubeInfo && (
+              <div className="mt-3 p-4 rounded-xl border border-green-400/20 bg-green-400/5 flex items-center gap-3">
+                {youtubeInfo.thumbnailUrl && (
+                  <img
+                    src={youtubeInfo.thumbnailUrl}
+                    alt="thumbnail"
+                    className="w-16 h-12 rounded-lg object-cover flex-shrink-0"
+                  />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate text-green-400">{youtubeInfo.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Duração: {Math.floor(youtubeInfo.durationSeconds / 60)}m {youtubeInfo.durationSeconds % 60}s
+                  </p>
+                </div>
+                <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Title input */}
         <div className="mb-4">
@@ -271,6 +440,51 @@ export default function Upload() {
             disabled={isProcessing || uploadState === "done"}
             className="bg-card border-border"
           />
+        </div>
+
+        {/* Niche Templates */}
+        <div className="mb-4">
+          <button
+            onClick={() => setShowNicheTemplates(!showNicheTemplates)}
+            disabled={isProcessing}
+            className="w-full flex items-center justify-between p-3 rounded-xl border border-border bg-card hover:border-primary/40 transition-all text-sm"
+          >
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="font-medium">
+                {selectedNiche
+                  ? `Nicho: ${nicheTemplates?.find((t) => t.id === selectedNiche)?.label ?? selectedNiche}`
+                  : "Templates por nicho"}
+              </span>
+              {selectedNiche && (
+                <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                  Aplicado
+                </Badge>
+              )}
+            </div>
+            {showNicheTemplates ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+          </button>
+
+          {showNicheTemplates && nicheTemplates && (
+            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {nicheTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => handleNicheSelect(template.id)}
+                  disabled={isProcessing}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    selectedNiche === template.id
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-card hover:border-primary/40 hover:bg-card/80 text-foreground"
+                  }`}
+                >
+                  <div className="text-xl mb-1">{template.icon}</div>
+                  <p className="text-xs font-semibold leading-tight">{template.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-tight line-clamp-2">{template.description}</p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Description input */}
@@ -323,7 +537,11 @@ export default function Upload() {
           <div className="mb-6 p-4 rounded-xl border border-border bg-card">
             <div className="flex justify-between text-sm mb-2">
               <span className="text-muted-foreground">
-                {uploadState === "uploading" ? "Enviando arquivo..." : "Criando projeto..."}
+                {uploadState === "uploading"
+                  ? "Enviando arquivo..."
+                  : inputMode === "youtube"
+                  ? "Extraindo áudio do YouTube..."
+                  : "Criando projeto..."}
               </span>
               {uploadState === "uploading" && <span className="font-medium">{uploadProgress}%</span>}
             </div>
@@ -338,7 +556,7 @@ export default function Upload() {
             {uploadState === "creating" && (
               <div className="flex items-center gap-2 text-sm text-primary">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Salvando projeto...
+                {inputMode === "youtube" ? "Extraindo e salvando áudio..." : "Salvando projeto..."}
               </div>
             )}
           </div>
@@ -348,7 +566,7 @@ export default function Upload() {
         {uploadState === "done" && (
           <div className="mb-6 p-4 rounded-xl border border-green-400/20 bg-green-400/5 flex items-center gap-3">
             <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0" />
-            <p className="text-green-400 text-sm font-medium">Upload concluído! Redirecionando...</p>
+            <p className="text-green-400 text-sm font-medium">Projeto criado! Redirecionando...</p>
           </div>
         )}
 
@@ -357,7 +575,7 @@ export default function Upload() {
           <div className="mb-6 p-4 rounded-xl border border-red-400/20 bg-red-400/5 flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-red-400 text-sm font-medium">Falha no upload</p>
+              <p className="text-red-400 text-sm font-medium">Falha ao criar projeto</p>
               <p className="text-muted-foreground text-xs mt-0.5">{errorMsg}</p>
             </div>
           </div>
@@ -374,14 +592,23 @@ export default function Upload() {
             Cancelar
           </Button>
           <Button
-            onClick={handleUpload}
-            disabled={!file || !title.trim() || isProcessing || uploadState === "done"}
+            onClick={inputMode === "file" ? handleUploadFile : handleYoutubeCreate}
+            disabled={!canSubmit}
             className="flex-1"
           >
             {isProcessing ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {uploadState === "uploading" ? `Enviando ${uploadProgress}%...` : "Criando..."}
+                {uploadState === "uploading"
+                  ? `Enviando ${uploadProgress}%...`
+                  : inputMode === "youtube"
+                  ? "Extraindo áudio..."
+                  : "Criando..."}
+              </>
+            ) : inputMode === "youtube" ? (
+              <>
+                <Youtube className="w-4 h-4 mr-2" />
+                Criar Projeto do YouTube
               </>
             ) : (
               <>

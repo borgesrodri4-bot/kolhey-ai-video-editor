@@ -20,7 +20,14 @@ import {
   getAllUsersAdmin,
   getAllProjectsAdmin,
   getProcessingsByDay,
+  createProjectVersion,
+  getProjectVersions,
+  getProjectVersionById,
+  setActiveProjectVersion,
+  countProjectVersions,
 } from "./db";
+import { NICHE_TEMPLATES, getNicheTemplateById } from "../shared/nicheTemplates";
+import { isValidYouTubeUrl, getYouTubeVideoInfo, extractYouTubeAudio } from "./youtubeExtractor";
 import { runVideoPipeline } from "./pipeline";
 import { generateImage } from "./_core/imageGeneration";
 import { nanoid } from "nanoid";
@@ -398,8 +405,237 @@ const adminRouter = router({
     .input(z.object({ days: z.number().min(1).max(90).default(14) }))
     .query(async ({ input }) => getProcessingsByDay(input.days)),
 });
+// ─── Niche Templates Router ────────────────────────────────────────────────────────────────────────────
+const nicheRouter = router({
+  /** Lista todos os templates de nicho disponíveis */
+  list: publicProcedure.query(() => NICHE_TEMPLATES),
 
-// ─── App Router ─────────────────────────────────────────────────────────────
+  /** Retorna um template específico por ID */
+  getById: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => {
+      const template = getNicheTemplateById(input.id);
+      if (!template) throw new TRPCError({ code: "NOT_FOUND", message: "Template não encontrado" });
+      return template;
+    }),
+});
+
+// ─── YouTube Router ────────────────────────────────────────────────────────────────────────────
+const youtubeRouter = router({
+  /** Valida e extrai metadados de uma URL do YouTube */
+  getInfo: protectedProcedure
+    .input(z.object({ url: z.string().url() }))
+    .mutation(async ({ input }) => {
+      if (!isValidYouTubeUrl(input.url)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "URL do YouTube inválida. Use o formato: https://www.youtube.com/watch?v=... ou https://youtu.be/..." });
+      }
+      try {
+        const info = await getYouTubeVideoInfo(input.url);
+        return {
+          videoId: info.videoId,
+          title: info.title,
+          durationSeconds: info.duration,
+          thumbnailUrl: info.thumbnailUrl,
+          youtubeUrl: input.url,
+          valid: true,
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro desconhecido";
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
+    }),
+
+  /** Cria projeto a partir de URL do YouTube e extrai áudio automaticamente */
+  createProject: protectedProcedure
+    .input(
+      z.object({
+        youtubeUrl: z.string().url(),
+        title: z.string().min(1).max(255),
+        description: z.string().max(1000).optional(),
+        visualStyle: z.string().optional().default("auto"),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (!isValidYouTubeUrl(input.youtubeUrl)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "URL do YouTube inválida" });
+      }
+
+      // Extract audio from YouTube and upload to S3
+      let audioInfo;
+      try {
+        audioInfo = await extractYouTubeAudio(input.youtubeUrl);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Falha ao extrair áudio do YouTube";
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: msg });
+      }
+
+      const result = await createVideoProject({
+        userId: ctx.user.id,
+        title: input.title || audioInfo.title,
+        description: input.description,
+        status: "pending",
+        originalVideoUrl: input.youtubeUrl,
+        originalVideoKey: `youtube:${input.youtubeUrl}`,
+        audioUrl: audioInfo.audioUrl,
+        audioKey: audioInfo.audioKey,
+        fileSizeBytes: audioInfo.fileSizeBytes,
+        durationSeconds: audioInfo.duration,
+        visualStyle: input.visualStyle,
+        progress: 0,
+      });
+      const insertId = (result as { insertId: number }).insertId;
+      return { id: insertId, title: input.title || audioInfo.title };
+    }),
+});
+
+// ─── Versions Router ────────────────────────────────────────────────────────────────────────────
+const versionsRouter = router({
+  /** Lista todas as versões de um projeto */
+  list: protectedProcedure
+    .input(z.object({ projectId: z.number() }))
+    .query(async ({ input, ctx }) => {
+      await assertProjectOwner(input.projectId, ctx.user.id);
+      return getProjectVersions(input.projectId);
+    }),
+
+  /** Salva snapshot da versão atual como histórico */
+  saveSnapshot: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number(),
+        label: z.string().max(255).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const project = await assertProjectOwner(input.projectId, ctx.user.id);
+      const scenes = await getScenesByProject(input.projectId);
+      const versionCount = await countProjectVersions(input.projectId);
+
+      const result = await createProjectVersion({
+        projectId: input.projectId,
+        userId: ctx.user.id,
+        versionNumber: versionCount + 1,
+        label: input.label ?? `Versão ${versionCount + 1}`,
+        visualStyle: project.visualStyle ?? "auto",
+        description: project.description ?? undefined,
+        scenesSnapshot: scenes as unknown as Record<string, unknown>[],
+        scenesCount: scenes.length,
+        isActive: "yes",
+      });
+
+      // Deactivate other versions
+      const versionId = (result as { insertId: number }).insertId;
+      await setActiveProjectVersion(input.projectId, versionId);
+
+      return { versionId, versionNumber: versionCount + 1 };
+    }),
+
+  /** Define uma versão como ativa */
+  setActive: protectedProcedure
+    .input(z.object({ projectId: z.number(), versionId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      await assertProjectOwner(input.projectId, ctx.user.id);
+      await setActiveProjectVersion(input.projectId, input.versionId);
+      return { activated: true };
+    }),
+
+  /** Restaura cenas de uma versão anterior */
+  restore: protectedProcedure
+    .input(z.object({ projectId: z.number(), versionId: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      await assertProjectOwner(input.projectId, ctx.user.id);
+      const version = await getProjectVersionById(input.versionId);
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Versão não encontrada" });
+      if (version.projectId !== input.projectId)
+        throw new TRPCError({ code: "FORBIDDEN", message: "Versão não pertence a este projeto" });
+
+      // Restore scenes from snapshot
+      const snapshot = version.scenesSnapshot as Array<{
+        id: number;
+        illustrationPrompt?: string;
+        illustrationUrl?: string;
+        illustrationKey?: string;
+        illustrationStatus?: "pending" | "generating" | "completed" | "failed";
+        transcript?: string;
+        sceneOrder?: number;
+      }> | null;
+      if (snapshot && Array.isArray(snapshot)) {
+        await Promise.all(
+          snapshot.map((scene) =>
+            updateVideoScene(scene.id, {
+              illustrationPrompt: scene.illustrationPrompt,
+              illustrationUrl: scene.illustrationUrl,
+              illustrationKey: scene.illustrationKey,
+              illustrationStatus: scene.illustrationStatus,
+              transcript: scene.transcript,
+              sceneOrder: scene.sceneOrder,
+            })
+          )
+        );
+      }
+
+      await setActiveProjectVersion(input.projectId, input.versionId);
+      return { restored: true, scenesRestored: snapshot?.length ?? 0 };
+    }),
+
+  /** Inicia reprocessamento do projeto com novas configurações */
+  reprocess: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.number(),
+        visualStyle: z.string().optional(),
+        description: z.string().max(1000).optional(),
+        label: z.string().max(255).optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      const project = await assertProjectOwner(input.projectId, ctx.user.id);
+
+      if (project.status === "processing") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Projeto já está sendo processado" });
+      }
+      if (!project.originalVideoUrl) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Vídeo não encontrado" });
+      }
+
+      // Save current state as a version before reprocessing
+      const scenes = await getScenesByProject(input.projectId);
+      if (scenes.length > 0) {
+        const versionCount = await countProjectVersions(input.projectId);
+        const vResult = await createProjectVersion({
+          projectId: input.projectId,
+          userId: ctx.user.id,
+          versionNumber: versionCount + 1,
+          label: input.label ?? `Versão ${versionCount + 1} - ${project.visualStyle ?? "auto"}`,
+          visualStyle: project.visualStyle ?? "auto",
+          description: project.description ?? undefined,
+          scenesSnapshot: scenes as unknown as Record<string, unknown>[],
+          scenesCount: scenes.length,
+          isActive: "no",
+        });
+        console.log(`[Versions] Saved version ${versionCount + 1} before reprocessing project ${input.projectId}`);
+      }
+
+      // Update project settings if provided
+      const updateData: Partial<typeof project> = {};
+      if (input.visualStyle) updateData.visualStyle = input.visualStyle;
+      if (input.description !== undefined) updateData.description = input.description;
+      if (Object.keys(updateData).length > 0) {
+        await updateVideoProject(input.projectId, updateData);
+      }
+
+      // Get style context and restart pipeline
+      const styleCtx = await getStyleContext(ctx.user.id);
+      const finalDescription = input.description ?? project.description ?? undefined;
+      runVideoPipeline(input.projectId, project.originalVideoUrl, styleCtx, finalDescription).catch((err) => {
+        console.error(`[Router] Reprocess pipeline failed for project ${input.projectId}:`, err);
+      });
+
+      return { started: true };
+    }),
+});
+
+// ─── App Router ────────────────────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
   auth: router({
@@ -414,6 +650,9 @@ export const appRouter = router({
   scenes: scenesRouter,
   adaptive: adaptiveRouter,
   admin: adminRouter,
+  niche: nicheRouter,
+  youtube: youtubeRouter,
+  versions: versionsRouter,
 });
 
 export type AppRouter = typeof appRouter;

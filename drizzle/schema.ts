@@ -193,3 +193,29 @@ export const styleFeedback = mysqlTable("style_feedback", {
 
 export type StyleFeedback = typeof styleFeedback.$inferSelect;
 export type InsertStyleFeedback = typeof styleFeedback.$inferInsert;
+
+// ─── Project Versions (Histórico de Versões) ──────────────────────────────────
+// Each time a user re-processes a project with different settings, a new version is created
+export const projectVersions = mysqlTable("project_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  userId: int("userId").notNull(),
+  // Version number (1, 2, 3...)
+  versionNumber: int("versionNumber").notNull(),
+  // Label chosen by user (e.g. "Versão flat design", "Versão aquarela")
+  label: varchar("label", { length: 255 }),
+  // Visual style used in this version
+  visualStyle: varchar("visualStyle", { length: 64 }),
+  // Description/context used in this version
+  description: text("description"),
+  // Snapshot of scenes at the time of this version (JSON)
+  scenesSnapshot: json("scenesSnapshot"),
+  // Number of scenes in this version
+  scenesCount: int("scenesCount").default(0).notNull(),
+  // Whether this is the currently active version
+  isActive: mysqlEnum("isActive", ["yes", "no"]).default("no").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ProjectVersion = typeof projectVersions.$inferSelect;
+export type InsertProjectVersion = typeof projectVersions.$inferInsert;

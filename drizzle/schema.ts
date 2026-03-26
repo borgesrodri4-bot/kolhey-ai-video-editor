@@ -16,6 +16,7 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  plan: mysqlEnum("plan", ["free", "pro", "enterprise"]).default("free").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -219,3 +220,20 @@ export const projectVersions = mysqlTable("project_versions", {
 
 export type ProjectVersion = typeof projectVersions.$inferSelect;
 export type InsertProjectVersion = typeof projectVersions.$inferInsert;
+
+// ─── User Notifications (In-App) ────────────────────────────────────────────────────────────────────────────
+export const userNotifications = mysqlTable("user_notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  type: mysqlEnum("type", ["success", "error", "info", "warning"]).default("info").notNull(),
+  // Optional reference to a project
+  projectId: int("projectId"),
+  // Null = unread, set to timestamp when user reads it
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type UserNotification = typeof userNotifications.$inferSelect;
+export type InsertUserNotification = typeof userNotifications.$inferInsert;

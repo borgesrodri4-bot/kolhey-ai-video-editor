@@ -73,6 +73,22 @@ export async function getUserByOpenId(openId: string) {
   return result[0];
 }
 
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result[0];
+}
+
+export async function updateUserPlan(
+  userId: number,
+  plan: "free" | "pro" | "enterprise"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set({ plan }).where(eq(users.id, userId));
+}
+
 // ─── Video Projects ────────────────────────────────────────────────────────────
 export async function createVideoProject(data: InsertVideoProject) {
   const db = await getDb();

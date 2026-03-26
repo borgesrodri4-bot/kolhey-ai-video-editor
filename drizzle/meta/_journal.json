@@ -43,6 +43,20 @@
       "when": 1774484672360,
       "tag": "0005_purple_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1774485389437,
+      "tag": "0006_handy_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1774485569855,
+      "tag": "0007_wooden_groot",
+      "breakpoints": true
     }
   ]
 }

@@ -197,7 +197,8 @@ export async function runVideoPipeline(
   projectId: number,
   audioUrl: string,
   styleCtx?: StyleContext,
-  projectDescription?: string
+  projectDescription?: string,
+  userId?: number
 ) {
   let jobId: number | undefined;
 
@@ -302,6 +303,25 @@ export async function runVideoPipeline(
       content: `O projeto #${projectId} foi processado com sucesso. ${totalScenes} cenas geradas.`,
     });
 
+    // Notificar usuário via sistema de notificações in-app
+    if (userId) {
+      try {
+        const { getUserById } = await import("./db");
+        const { sendUserNotification } = await import("./_core/userNotification");
+        const user = await getUserById(userId);
+        if (user) {
+          await sendUserNotification(userId, {
+            title: "✅ Processamento concluído!",
+            message: `Seu projeto #${projectId} foi processado com sucesso. ${totalScenes} cenas geradas. Clique para visualizar.`,
+            type: "success",
+            projectId,
+          });
+        }
+      } catch (notifyErr) {
+        console.warn("[Pipeline] Could not send user notification:", notifyErr);
+      }
+    }
+
     // Trigger adaptive profile update asynchronously (non-blocking)
     try {
       const project = await getVideoProjectById(projectId);
@@ -336,6 +356,21 @@ export async function runVideoPipeline(
       title: "❌ Falha no processamento de vídeo",
       content: `O projeto #${projectId} falhou: ${errorMessage}`,
     });
+
+    // Notificar usuário sobre falha
+    if (userId) {
+      try {
+        const { sendUserNotification } = await import("./_core/userNotification");
+        await sendUserNotification(userId, {
+          title: "❌ Processamento falhou",
+          message: `O projeto #${projectId} encontrou um erro: ${errorMessage.slice(0, 120)}`,
+          type: "error",
+          projectId,
+        });
+      } catch (notifyErr) {
+        console.warn("[Pipeline] Could not send failure notification:", notifyErr);
+      }
+    }
 
     throw error;
   }

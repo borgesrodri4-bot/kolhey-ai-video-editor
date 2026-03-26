@@ -11,6 +11,7 @@ import {
   Plus, Film, Clock, CheckCircle2, XCircle, Loader2, Trash2, Eye,
   LogOut, LayoutDashboard, Brain, ShieldCheck, HelpCircle, Menu, X, Search, Filter,
 } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationBell";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -303,9 +304,12 @@ export default function Dashboard() {
             <Menu className="w-5 h-5" />
           </button>
           <KolheyWordmark size="sm" variant="light" />
-          <Button size="sm" onClick={() => navigate("/upload")} className="h-8 px-3">
-            <Plus className="w-3.5 h-3.5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <Button size="sm" onClick={() => navigate("/upload")} className="h-8 px-3">
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         </div>
 
         <div className="p-4 sm:p-6 lg:p-8">
@@ -322,13 +326,16 @@ export default function Dashboard() {
                 {projectList.length} de {allProjects.length} projeto{allProjects.length !== 1 ? "s" : ""}
               </p>
             </div>
-            <Button
-              onClick={() => navigate("/upload")}
-              className="bg-primary hover:bg-primary/90 hidden sm:flex"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Projeto
-            </Button>
+            <div className="hidden sm:flex items-center gap-2">
+              <NotificationBell />
+              <Button
+                onClick={() => navigate("/upload")}
+                className="bg-primary hover:bg-primary/90"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Projeto
+              </Button>
+            </div>
           </div>
 
           {/* Search & Filter */}

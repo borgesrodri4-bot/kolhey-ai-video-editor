@@ -25,7 +25,17 @@ import {
   getProjectVersionById,
   setActiveProjectVersion,
   countProjectVersions,
+  getUserById,
+  updateUserPlan,
 } from "./db";
+import { notifyOwner } from "./_core/notification";
+import {
+  sendUserNotification,
+  getUserNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  countUnreadNotifications,
+} from "./_core/userNotification";
 import { NICHE_TEMPLATES, getNicheTemplateById } from "../shared/nicheTemplates";
 import { isValidYouTubeUrl, getYouTubeVideoInfo, extractYouTubeAudio } from "./youtubeExtractor";
 import { runVideoPipeline } from "./pipeline";
@@ -139,7 +149,7 @@ const videosRouter = router({
       const styleCtx = await getStyleContext(ctx.user.id);
 
       // Start pipeline asynchronously with style context and project description
-      runVideoPipeline(input.id, project.originalVideoUrl, styleCtx, project.description ?? undefined).catch((err) => {
+      runVideoPipeline(input.id, project.originalVideoUrl, styleCtx, project.description ?? undefined, ctx.user.id).catch((err) => {
         console.error(`[Router] Pipeline failed for project ${input.id}:`, err);
       });
 
@@ -422,15 +432,20 @@ const nicheRouter = router({
 
 // ─── YouTube Router ────────────────────────────────────────────────────────────────────────────
 const youtubeRouter = router({
-  /** Valida e extrai metadados de uma URL do YouTube */
+  /** Valida e extrai metadados de uma URL do YouTube (respeitando limite do plano) */
   getInfo: protectedProcedure
     .input(z.object({ url: z.string().url() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       if (!isValidYouTubeUrl(input.url)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "URL do YouTube inválida. Use o formato: https://www.youtube.com/watch?v=... ou https://youtu.be/..." });
       }
       try {
         const info = await getYouTubeVideoInfo(input.url);
+        // Check plan limit
+        const user = await getUserById(ctx.user.id);
+        const plan = (user?.plan ?? "free") as "free" | "pro" | "enterprise";
+        const limitSeconds = PLAN_YOUTUBE_LIMITS[plan];
+        const exceedsLimit = info.duration > limitSeconds;
         return {
           videoId: info.videoId,
           title: info.title,
@@ -438,6 +453,10 @@ const youtubeRouter = router({
           thumbnailUrl: info.thumbnailUrl,
           youtubeUrl: input.url,
           valid: true,
+          exceedsLimit,
+          limitSeconds,
+          limitMinutes: Math.floor(limitSeconds / 60),
+          plan,
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Erro desconhecido";
@@ -458,6 +477,29 @@ const youtubeRouter = router({
     .mutation(async ({ input, ctx }) => {
       if (!isValidYouTubeUrl(input.youtubeUrl)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "URL do YouTube inválida" });
+      }
+
+      // Check plan limit before extracting audio
+      const user = await getUserById(ctx.user.id);
+      const plan = (user?.plan ?? "free") as "free" | "pro" | "enterprise";
+      const limitSeconds = PLAN_YOUTUBE_LIMITS[plan];
+
+      // Get video info first to check duration
+      let videoInfo;
+      try {
+        videoInfo = await getYouTubeVideoInfo(input.youtubeUrl);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Erro ao obter informações do vídeo";
+        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+      }
+
+      if (videoInfo.duration > limitSeconds) {
+        const limitMin = Math.floor(limitSeconds / 60);
+        const durationMin = Math.floor(videoInfo.duration / 60);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Vídeo muito longo (${durationMin}min). Seu plano ${PLAN_LABELS[plan]} permite até ${limitMin} minutos. Faça upgrade para processar vídeos mais longos.`,
+        });
       }
 
       // Extract audio from YouTube and upload to S3
@@ -627,11 +669,85 @@ const versionsRouter = router({
       // Get style context and restart pipeline
       const styleCtx = await getStyleContext(ctx.user.id);
       const finalDescription = input.description ?? project.description ?? undefined;
-      runVideoPipeline(input.projectId, project.originalVideoUrl, styleCtx, finalDescription).catch((err) => {
+      runVideoPipeline(input.projectId, project.originalVideoUrl, styleCtx, finalDescription, ctx.user.id).catch((err) => {
         console.error(`[Router] Reprocess pipeline failed for project ${input.projectId}:`, err);
       });
 
       return { started: true };
+    }),
+});
+
+// ─── Notifications Router ────────────────────────────────────────────────────────────────────────────
+const notificationsRouter = router({
+  /** Lista notificações do usuário autenticado */
+  list: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(50).optional() }))
+    .query(async ({ input, ctx }) => {
+      return getUserNotifications(ctx.user.id, input.limit ?? 20);
+    }),
+
+  /** Conta notificações não lidas */
+  countUnread: protectedProcedure.query(async ({ ctx }) => {
+    const count = await countUnreadNotifications(ctx.user.id);
+    return { count };
+  }),
+
+  /** Marca uma notificação como lida */
+  markRead: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      await markNotificationRead(input.id, ctx.user.id);
+      return { success: true };
+    }),
+
+  /** Marca todas as notificações como lidas */
+  markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+    await markAllNotificationsRead(ctx.user.id);
+    return { success: true };
+  }),
+});
+
+// ─── Plan limits per plan ────────────────────────────────────────────────────────────────────────────
+export const PLAN_YOUTUBE_LIMITS: Record<"free" | "pro" | "enterprise", number> = {
+  free: 15 * 60,       // 15 minutes
+  pro: 30 * 60,        // 30 minutes
+  enterprise: 60 * 60, // 60 minutes
+};
+
+export const PLAN_LABELS: Record<"free" | "pro" | "enterprise", string> = {
+  free: "Gratuito",
+  pro: "Pro",
+  enterprise: "Enterprise",
+};
+
+// ─── Plan Router ────────────────────────────────────────────────────────────────────────────
+const planRouter = router({
+  /** Retorna o plano atual do usuário autenticado */
+  getCurrent: protectedProcedure.query(async ({ ctx }) => {
+    const user = await getUserById(ctx.user.id);
+    const plan = (user?.plan ?? "free") as "free" | "pro" | "enterprise";
+    return {
+      plan,
+      label: PLAN_LABELS[plan],
+      youtubeLimitSeconds: PLAN_YOUTUBE_LIMITS[plan],
+      youtubeLimitMinutes: Math.floor(PLAN_YOUTUBE_LIMITS[plan] / 60),
+    };
+  }),
+
+  /** Admin: atualiza o plano de um usuário */
+  setUserPlan: protectedProcedure
+    .input(
+      z.object({
+        userId: z.number(),
+        plan: z.enum(["free", "pro", "enterprise"]),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem alterar planos" });
+      }
+      await updateUserPlan(input.userId, input.plan);
+      return { updated: true };
     }),
 });
 
@@ -653,6 +769,8 @@ export const appRouter = router({
   niche: nicheRouter,
   youtube: youtubeRouter,
   versions: versionsRouter,
+  plan: planRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;

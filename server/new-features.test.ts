@@ -87,6 +87,19 @@ vi.mock("./db", () => {
     getProjectVersionById: vi.fn().mockResolvedValue(version),
     setActiveProjectVersion: vi.fn().mockResolvedValue(undefined),
     countProjectVersions: vi.fn().mockResolvedValue(1),
+    // Plan helpers
+    getUserById: vi.fn().mockResolvedValue({
+      id: 1,
+      openId: "test-user",
+      email: "test@example.com",
+      name: "Test User",
+      role: "user",
+      plan: "free",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    }),
+    updateUserPlan: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -118,6 +131,14 @@ vi.mock("./storage", () => ({
 
 vi.mock("./_core/imageGeneration", () => ({
   generateImage: vi.fn().mockResolvedValue({ url: "https://example.com/generated.png" }),
+}));
+
+vi.mock("./_core/userNotification", () => ({
+  sendUserNotification: vi.fn().mockResolvedValue(undefined),
+  getUserNotifications: vi.fn().mockResolvedValue([]),
+  markNotificationRead: vi.fn().mockResolvedValue(undefined),
+  markAllNotificationsRead: vi.fn().mockResolvedValue(undefined),
+  countUnreadNotifications: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock("./youtubeExtractor", () => ({
@@ -317,5 +338,71 @@ describe("versions.reprocess", () => {
       label: "Versão antes do reprocessamento",
     });
     expect(result.started).toBe(true);
+  });
+});
+
+// ─── Notifications Tests ───────────────────────────────────────────────────────
+describe("notifications.list", () => {
+  it("returns notifications for authenticated user", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.notifications.list({});
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("accepts limit parameter", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.notifications.list({ limit: 5 });
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("notifications.countUnread", () => {
+  it("returns unread count for authenticated user", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.notifications.countUnread();
+    expect(result).toHaveProperty("count");
+    expect(typeof result.count).toBe("number");
+  });
+});
+
+describe("notifications.markRead", () => {
+  it("marks a notification as read", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.notifications.markRead({ id: 1 });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("notifications.markAllRead", () => {
+  it("marks all notifications as read", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.notifications.markAllRead();
+    expect(result.success).toBe(true);
+  });
+});
+
+// ─── Plan Tests ────────────────────────────────────────────────────────────────
+describe("plan.getCurrent", () => {
+  it("returns the current user plan and limits", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.plan.getCurrent();
+    expect(result).toHaveProperty("plan");
+    expect(result).toHaveProperty("youtubeDurationLimitSeconds");
+    expect(result).toHaveProperty("youtubeDurationLimitMinutes");
+    expect(["free", "pro", "enterprise"]).toContain(result.plan);
+  });
+
+  it("free plan has 15 minute YouTube limit", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.plan.getCurrent();
+    // Default is free
+    expect(result.youtubeDurationLimitMinutes).toBe(15);
   });
 });

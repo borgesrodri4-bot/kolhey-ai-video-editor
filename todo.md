@@ -123,3 +123,17 @@
 - [x] Frontend: página `/projects/:id/versions` com histórico e comparação de versões
 - [x] Botão "Versões" na página de detalhe do projeto
 - [x] 31 testes passando (4 arquivos), zero erros TypeScript
+
+## Melhorias v3 (PAUSADA - Em Progresso)
+- [x] Schema: campo plan na tabela users (free | pro | enterprise)
+- [x] Lógica de limite de duração YouTube por plano (backend)
+- [x] Endpoint plan.getCurrent para retornar plano e limites
+- [ ] UI: badge de plano no header do Dashboard
+- [ ] UI: mensagem de upgrade ao atingir limite de duração
+- [x] Comparação lado a lado de versões na página /versions
+- [x] Seletor de 2 versões para comparar (modo compare ativo)
+- [x] Grid 2 colunas com cenas de cada versão alinhadas (CompareView)
+- [x] Notificação ao usuário (in-app) ao concluir reprocessamento (NotificationBell)
+- [ ] Corrigir mock do plan.getCurrent nos testes (retorna undefined)
+- [ ] Executar pnpm test para validar 38 testes passando
+- [ ] Salvar checkpoint final

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useLocation } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import {
   ArrowLeft, Clock, Layers, CheckCircle2, RotateCcw,
   Loader2, Play, Star, Calendar, Image as ImageIcon,
   ChevronDown, ChevronUp, RefreshCw, Palette,
+  Columns2, List, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { KolheyWordmark } from "@/components/KolheyLogo";
@@ -33,6 +34,184 @@ function formatDate(date: Date | string) {
   });
 }
 
+type SceneSnapshot = {
+  id: number;
+  sceneOrder: number;
+  transcript: string;
+  illustrationPrompt?: string;
+  illustrationUrl?: string;
+};
+
+type VersionData = {
+  id: number;
+  versionNumber: number;
+  label?: string | null;
+  visualStyle?: string | null;
+  description?: string | null;
+  scenesCount: number;
+  isActive: "yes" | "no";
+  createdAt: Date | string;
+  scenesSnapshot?: unknown;
+};
+
+// ─── Compare Mode Component ────────────────────────────────────────────────────
+function CompareView({
+  versionA,
+  versionB,
+  onClose,
+}: {
+  versionA: VersionData;
+  versionB: VersionData;
+  onClose: () => void;
+}) {
+  const snapshotA = (versionA.scenesSnapshot as SceneSnapshot[] | null) ?? [];
+  const snapshotB = (versionB.scenesSnapshot as SceneSnapshot[] | null) ?? [];
+  const maxScenes = Math.max(snapshotA.length, snapshotB.length);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background overflow-auto">
+      {/* Compare Header */}
+      <div className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur-sm">
+        <div className="container flex items-center justify-between h-14">
+          <div className="flex items-center gap-3">
+            <Columns2 className="w-5 h-5 text-primary" />
+            <span className="font-semibold text-sm">Comparação de Versões</span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="w-4 h-4 mr-1.5" />
+            Fechar
+          </Button>
+        </div>
+      </div>
+
+      {/* Version labels */}
+      <div className="container py-4">
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {[versionA, versionB].map((v, idx) => (
+            <div
+              key={v.id}
+              className={`p-4 rounded-2xl border ${
+                idx === 0 ? "border-blue-500/30 bg-blue-500/5" : "border-orange-500/30 bg-orange-500/5"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                    idx === 0 ? "bg-blue-500" : "bg-orange-500"
+                  }`}
+                >
+                  {idx === 0 ? "A" : "B"}
+                </div>
+                <span className="font-semibold text-sm">{v.label ?? `Versão ${v.versionNumber}`}</span>
+                {v.isActive === "yes" && (
+                  <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                    Ativa
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Palette className="w-3 h-3" />
+                  {STYLE_LABELS[v.visualStyle ?? "auto"] ?? v.visualStyle}
+                </span>
+                <span className="flex items-center gap-1">
+                  <ImageIcon className="w-3 h-3" />
+                  {v.scenesCount} cenas
+                </span>
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  {formatDate(v.createdAt)}
+                </span>
+              </div>
+              {v.description && (
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">
+                  "{v.description}"
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Scene comparison rows */}
+        <div className="space-y-4">
+          {maxScenes === 0 ? (
+            <div className="text-center py-12 text-muted-foreground text-sm">
+              Nenhuma cena disponível para comparar nessas versões.
+            </div>
+          ) : (
+            Array.from({ length: maxScenes }).map((_, idx) => {
+              const sceneA = snapshotA[idx];
+              const sceneB = snapshotB[idx];
+              return (
+                <div key={idx} className="grid grid-cols-2 gap-4">
+                  {/* Scene A */}
+                  <div className={`rounded-xl border overflow-hidden ${sceneA ? "border-blue-500/20 bg-card" : "border-dashed border-border bg-muted/20"}`}>
+                    {sceneA ? (
+                      <>
+                        {sceneA.illustrationUrl ? (
+                          <img
+                            src={sceneA.illustrationUrl}
+                            alt={`Cena ${idx + 1} — A`}
+                            className="w-full h-36 object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-36 flex items-center justify-center bg-muted">
+                            <ImageIcon className="w-6 h-6 text-muted-foreground opacity-30" />
+                          </div>
+                        )}
+                        <div className="p-3">
+                          <p className="text-xs font-medium text-blue-400 mb-1">Cena {idx + 1}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+                            {sceneA.transcript || sceneA.illustrationPrompt || "—"}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="h-36 flex items-center justify-center">
+                        <p className="text-xs text-muted-foreground">Sem cena</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Scene B */}
+                  <div className={`rounded-xl border overflow-hidden ${sceneB ? "border-orange-500/20 bg-card" : "border-dashed border-border bg-muted/20"}`}>
+                    {sceneB ? (
+                      <>
+                        {sceneB.illustrationUrl ? (
+                          <img
+                            src={sceneB.illustrationUrl}
+                            alt={`Cena ${idx + 1} — B`}
+                            className="w-full h-36 object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-36 flex items-center justify-center bg-muted">
+                            <ImageIcon className="w-6 h-6 text-muted-foreground opacity-30" />
+                          </div>
+                        )}
+                        <div className="p-3">
+                          <p className="text-xs font-medium text-orange-400 mb-1">Cena {idx + 1}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">
+                            {sceneB.transcript || sceneB.illustrationPrompt || "—"}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="h-36 flex items-center justify-center">
+                        <p className="text-xs text-muted-foreground">Sem cena</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
 export default function ProjectVersions() {
   const { id } = useParams<{ id: string }>();
   const projectId = parseInt(id ?? "0", 10);
@@ -44,6 +223,11 @@ export default function ProjectVersions() {
   const [reprocessStyle, setReprocessStyle] = useState("auto");
   const [reprocessDescription, setReprocessDescription] = useState("");
   const [reprocessLabel, setReprocessLabel] = useState("");
+
+  // Compare mode state
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSelections, setCompareSelections] = useState<number[]>([]);
+  const [compareViewOpen, setCompareViewOpen] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -87,12 +271,32 @@ export default function ProjectVersions() {
     onSuccess: () => {
       utils.versions.list.invalidate({ projectId });
       utils.videos.getById.invalidate({ id: projectId });
-      toast.success("Reprocessamento iniciado! Redirecionando...");
+      toast.success("Reprocessamento iniciado! Você receberá uma notificação ao concluir.");
       setReprocessModalOpen(false);
       setTimeout(() => navigate(`/projects/${projectId}`), 1500);
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // Derived: versions selected for comparison
+  const compareVersions = useMemo(() => {
+    if (!versions || compareSelections.length < 2) return null;
+    const a = versions.find((v) => v.id === compareSelections[0]);
+    const b = versions.find((v) => v.id === compareSelections[1]);
+    if (!a || !b) return null;
+    return { a, b };
+  }, [versions, compareSelections]);
+
+  function toggleCompareSelection(versionId: number) {
+    setCompareSelections((prev) => {
+      if (prev.includes(versionId)) return prev.filter((id) => id !== versionId);
+      if (prev.length >= 2) {
+        toast.info("Selecione apenas 2 versões para comparar");
+        return prev;
+      }
+      return [...prev, versionId];
+    });
+  }
 
   if (loading || projectLoading) {
     return (
@@ -108,6 +312,17 @@ export default function ProjectVersions() {
   }
 
   const isProcessing = reprocessMutation.isPending || restoreMutation.isPending || setActiveMutation.isPending;
+
+  // Show compare view if open
+  if (compareViewOpen && compareVersions) {
+    return (
+      <CompareView
+        versionA={compareVersions.a as VersionData}
+        versionB={compareVersions.b as VersionData}
+        onClose={() => setCompareViewOpen(false)}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,6 +344,21 @@ export default function ProjectVersions() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Compare mode toggle */}
+            {versions && versions.length >= 2 && (
+              <Button
+                variant={compareMode ? "default" : "outline"}
+                size="sm"
+                className={compareMode ? "" : "bg-transparent"}
+                onClick={() => {
+                  setCompareMode(!compareMode);
+                  setCompareSelections([]);
+                }}
+              >
+                <Columns2 className="w-4 h-4 mr-2" />
+                {compareMode ? "Cancelar" : "Comparar"}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -177,6 +407,35 @@ export default function ProjectVersions() {
             Histórico de versões — compare e restaure versões anteriores do processamento
           </p>
         </div>
+
+        {/* Compare mode banner */}
+        {compareMode && (
+          <div className="mb-6 p-4 rounded-2xl border border-primary/30 bg-primary/5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Columns2 className="w-5 h-5 text-primary flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium">Modo de comparação</p>
+                <p className="text-xs text-muted-foreground">
+                  {compareSelections.length === 0
+                    ? "Selecione 2 versões para comparar lado a lado"
+                    : compareSelections.length === 1
+                    ? "Selecione mais 1 versão"
+                    : "2 versões selecionadas — pronto para comparar"}
+                </p>
+              </div>
+            </div>
+            {compareSelections.length === 2 && (
+              <Button
+                size="sm"
+                onClick={() => setCompareViewOpen(true)}
+                className="flex-shrink-0"
+              >
+                <Columns2 className="w-4 h-4 mr-2" />
+                Ver comparação
+              </Button>
+            )}
+          </div>
+        )}
 
         {/* Current state card */}
         <div className="mb-6 p-5 rounded-2xl border border-primary/20 bg-primary/5">
@@ -234,36 +493,61 @@ export default function ProjectVersions() {
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground font-medium">
-              {versions.length} {versions.length === 1 ? "versão salva" : "versões salvas"}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground font-medium">
+                {versions.length} {versions.length === 1 ? "versão salva" : "versões salvas"}
+              </p>
+              {compareMode && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <List className="w-3 h-3" />
+                  Clique nas versões para selecionar
+                </p>
+              )}
+            </div>
             {versions.map((version) => {
               const isExpanded = expandedVersion === version.id;
               const isActive = version.isActive === "yes";
-              const snapshot = version.scenesSnapshot as Array<{
-                id: number;
-                sceneOrder: number;
-                transcript: string;
-                illustrationPrompt?: string;
-                illustrationUrl?: string;
-              }> | null;
+              const isSelectedForCompare = compareSelections.includes(version.id);
+              const compareIdx = compareSelections.indexOf(version.id);
+              const snapshot = version.scenesSnapshot as SceneSnapshot[] | null;
 
               return (
                 <div
                   key={version.id}
                   className={`rounded-2xl border transition-all ${
-                    isActive
+                    compareMode && isSelectedForCompare
+                      ? compareIdx === 0
+                        ? "border-blue-500/50 bg-blue-500/10 ring-2 ring-blue-500/20"
+                        : "border-orange-500/50 bg-orange-500/10 ring-2 ring-orange-500/20"
+                      : isActive
                       ? "border-primary/30 bg-primary/5"
                       : "border-border bg-card"
-                  }`}
+                  } ${compareMode ? "cursor-pointer" : ""}`}
+                  onClick={() => compareMode && toggleCompareSelection(version.id)}
                 >
                   {/* Version header */}
                   <div className="p-4 flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                      isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                    }`}>
-                      v{version.versionNumber}
-                    </div>
+                    {/* Compare selection indicator */}
+                    {compareMode ? (
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                          isSelectedForCompare
+                            ? compareIdx === 0
+                              ? "bg-blue-500 text-white"
+                              : "bg-orange-500 text-white"
+                            : "bg-muted text-muted-foreground border-2 border-dashed border-border"
+                        }`}
+                      >
+                        {isSelectedForCompare ? (compareIdx === 0 ? "A" : "B") : "·"}
+                      </div>
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                        isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                      }`}>
+                        v{version.versionNumber}
+                      </div>
+                    )}
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm">{version.label ?? `Versão ${version.versionNumber}`}</span>
@@ -295,46 +579,56 @@ export default function ProjectVersions() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {!isActive && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="bg-transparent text-xs h-7 px-2"
-                            onClick={() => setActiveMutation.mutate({ projectId, versionId: version.id })}
-                            disabled={isProcessing}
-                          >
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Ativar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="bg-transparent text-xs h-7 px-2 text-orange-400 border-orange-400/30 hover:bg-orange-400/10"
-                            onClick={() => {
-                              if (confirm(`Restaurar as ${version.scenesCount} cenas da ${version.label ?? `Versão ${version.versionNumber}`}? As cenas atuais serão substituídas.`)) {
-                                restoreMutation.mutate({ projectId, versionId: version.id });
-                              }
-                            }}
-                            disabled={isProcessing}
-                          >
-                            <RotateCcw className="w-3 h-3 mr-1" />
-                            Restaurar
-                          </Button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => setExpandedVersion(isExpanded ? null : version.id)}
-                        className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
-                      >
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </button>
-                    </div>
+
+                    {!compareMode && (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {!isActive && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="bg-transparent text-xs h-7 px-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMutation.mutate({ projectId, versionId: version.id });
+                              }}
+                              disabled={isProcessing}
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Ativar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="bg-transparent text-xs h-7 px-2 text-orange-400 border-orange-400/30 hover:bg-orange-400/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Restaurar as ${version.scenesCount} cenas da ${version.label ?? `Versão ${version.versionNumber}`}? As cenas atuais serão substituídas.`)) {
+                                  restoreMutation.mutate({ projectId, versionId: version.id });
+                                }
+                              }}
+                              disabled={isProcessing}
+                            >
+                              <RotateCcw className="w-3 h-3 mr-1" />
+                              Restaurar
+                            </Button>
+                          </>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedVersion(isExpanded ? null : version.id);
+                          }}
+                          className="p-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+                        >
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Expanded scene preview */}
-                  {isExpanded && snapshot && snapshot.length > 0 && (
+                  {/* Expanded scene preview (only in list mode) */}
+                  {!compareMode && isExpanded && snapshot && snapshot.length > 0 && (
                     <div className="px-4 pb-4 border-t border-border/50 pt-3">
                       <p className="text-xs font-medium text-muted-foreground mb-3">
                         Prévia das cenas ({snapshot.length})
@@ -384,7 +678,7 @@ export default function ProjectVersions() {
                 Reprocessar Projeto
               </h2>
               <p className="text-sm text-muted-foreground mb-6">
-                A versão atual será salva no histórico antes do reprocessamento.
+                A versão atual será salva no histórico. Você receberá uma notificação quando concluir.
               </p>
 
               {/* Style selector */}

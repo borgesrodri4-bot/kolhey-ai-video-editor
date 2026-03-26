@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `user_notifications` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`title` varchar(255) NOT NULL,\n\t`message` text NOT NULL,\n\t`type` enum('success','error','info','warning') NOT NULL DEFAULT 'info',\n\t`projectId` int,\n\t`readAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `user_notifications_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3HSDZo5GWG3argo.root --database gwVBgn9SLQhabuuxC5oTDT --execute CREATE TABLE `user_notifications` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`title` varchar(255) NOT NULL,\n\t`message` text NOT NULL,\n\t`type` enum('success','error','info','warning') NOT NULL DEFAULT 'info',\n\t`projectId` int,\n\t`readAt` timestamp,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `user_notifications_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 178
+}

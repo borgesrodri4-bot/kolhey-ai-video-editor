@@ -92,3 +92,14 @@
 - [ ] Responsividade mobile: sidebar collapsible, cards empilhados
 - [ ] Botão de voltar ao topo nas páginas longas
 - [ ] Toast de confirmação ao salvar edições de cena
+
+## Auditoria Pré-Publicação
+- [ ] Revisar todos os routers tRPC (inputs, outputs, erros)
+- [ ] Revisar pipeline de processamento (transcrição, LLM, imagens)
+- [ ] Revisar engine adaptativa (logEditEvent, analyzeAndUpdateProfile)
+- [ ] Revisar helpers de banco de dados (db.ts)
+- [ ] Revisar fluxo de upload (presigned URL, S3, criação de projeto)
+- [ ] Revisar fluxo de processamento (startProcessing, polling de status)
+- [ ] Revisar fluxo de exportação JSON (compatibilidade com Remotion)
+- [ ] Revisar todos os estados de loading/erro/empty no frontend
+- [ ] Corrigir todos os problemas encontrados

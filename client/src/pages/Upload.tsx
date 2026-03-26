@@ -151,8 +151,8 @@ export default function Upload() {
   }
 
   const isProcessing = uploadState === "uploading" || uploadState === "creating";
-  const hasProfile = adaptiveProfile && (adaptiveProfile as { confidenceScore?: number }).confidenceScore != null;
-  const confidence = hasProfile ? Math.round(((adaptiveProfile as { confidenceScore?: number }).confidenceScore ?? 0) * 100) : 0;
+  const hasProfile = adaptiveProfile?.hasProfile === true;
+  const confidence = hasProfile ? Math.round((adaptiveProfile?.context?.confidenceScore ?? 0)) : 0;
 
   return (
     <div className="min-h-screen bg-background">

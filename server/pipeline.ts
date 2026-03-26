@@ -15,6 +15,7 @@ import {
   updateVideoScene,
   updateProcessingJob,
   createProcessingJob,
+  getVideoProjectById,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import { nanoid } from "nanoid";
@@ -295,19 +296,12 @@ export async function runVideoPipeline(
     });
 
     // Trigger adaptive profile update asynchronously (non-blocking)
-    // We need the userId — fetch it from the project
     try {
-      const { getDb } = await import("./db");
-      const { videoProjects } = await import("../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const db = await getDb();
-      if (db) {
-        const rows = await db.select({ userId: videoProjects.userId }).from(videoProjects).where(eq(videoProjects.id, projectId)).limit(1);
-        if (rows.length > 0) {
-          analyzeAndUpdateProfile(rows[0].userId).catch((err) =>
-            console.error("[Pipeline] Adaptive profile update failed:", err)
-          );
-        }
+      const project = await getVideoProjectById(projectId);
+      if (project?.userId) {
+        analyzeAndUpdateProfile(project.userId).catch((err) =>
+          console.error("[Pipeline] Adaptive profile update failed:", err)
+        );
       }
     } catch (err) {
       console.error("[Pipeline] Could not trigger adaptive profile update:", err);

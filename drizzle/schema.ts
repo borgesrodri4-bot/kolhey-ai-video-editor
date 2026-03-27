@@ -237,3 +237,31 @@ export const userNotifications = mysqlTable("user_notifications", {
 
 export type UserNotification = typeof userNotifications.$inferSelect;
 export type InsertUserNotification = typeof userNotifications.$inferInsert;
+
+// ─── Invites (Sistema de Convites) ─────────────────────────────────────────────
+export const invites = mysqlTable("invites", {
+  id: int("id").autoincrement().primaryKey(),
+  token: varchar("token", { length: 255 }).notNull().unique(),
+  createdBy: int("createdBy").notNull(), // Admin que gerou o convite
+  maxUses: int("maxUses").default(1).notNull(), // Quantas vezes pode ser usado (padrão 1)
+  usesCount: int("usesCount").default(0).notNull(),
+  expiresAt: timestamp("expiresAt"), // Opcional: data de expiração
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Invite = typeof invites.$inferSelect;
+export type InsertInvite = typeof invites.$inferInsert;
+
+// ─── Authorized Users (Whitelist de Acesso Permanente) ─────────────────────────
+export const authorizedUsers = mysqlTable("authorized_users", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull().unique(),
+  invitedBy: int("invitedBy"), // Admin que autorizou
+  inviteId: int("inviteId"), // ID do convite usado (se houver)
+  status: mysqlEnum("status", ["active", "revoked"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AuthorizedUser = typeof authorizedUsers.$inferSelect;
+export type InsertAuthorizedUser = typeof authorizedUsers.$inferInsert;

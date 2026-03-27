@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router, authorizedProcedure } from "./_core/trpc";
 import { storagePut } from "./storage";
 import {
   createVideoProject,
@@ -27,6 +27,13 @@ import {
   countProjectVersions,
   getUserById,
   updateUserPlan,
+  createInvite,
+  getInviteByToken,
+  incrementInviteUses,
+  authorizeUser,
+  isUserAuthorized,
+  getAllAuthorizedUsers,
+  revokeUserAuthorization,
 } from "./db";
 import { notifyOwner } from "./_core/notification";
 import {
@@ -62,7 +69,7 @@ async function assertProjectOwner(projectId: number, userId: number) {
 // ─── Videos Router ─────────────────────────────────────────────────────────────
 const videosRouter = router({
   /** Gera URL presigned para upload direto ao S3 */
-  getUploadUrl: protectedProcedure
+  getUploadUrl: authorizedProcedure
     .input(
       z.object({
         filename: z.string(),
@@ -77,7 +84,7 @@ const videosRouter = router({
     }),
 
   /** Cria projeto após upload concluído */
-  create: protectedProcedure
+  create: authorizedProcedure
     .input(
       z.object({
         title: z.string().min(1).max(255),
@@ -105,7 +112,7 @@ const videosRouter = router({
     }),
 
   /** Lista projetos do usuário com paginação cursor-based */
-  list: protectedProcedure
+  list: authorizedProcedure
     .input(
       z.object({
         cursor: z.number().optional(), // ID do último item da página anterior
@@ -124,7 +131,7 @@ const videosRouter = router({
     }),
 
   /** Busca projeto por ID com suas cenas */
-  getById: protectedProcedure
+  getById: authorizedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const project = await assertProjectOwner(input.id, ctx.user.id);
@@ -133,7 +140,7 @@ const videosRouter = router({
     }),
 
   /** Inicia o pipeline de processamento (com contexto adaptativo injetado) */
-  startProcessing: protectedProcedure
+  startProcessing: authorizedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const project = await assertProjectOwner(input.id, ctx.user.id);
@@ -166,7 +173,7 @@ const videosRouter = router({
     }),
 
   /** Polling de status do processamento */
-  getStatus: protectedProcedure
+  getStatus: authorizedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input, ctx }) => {
       const project = await assertProjectOwner(input.id, ctx.user.id);
@@ -180,7 +187,7 @@ const videosRouter = router({
     }),
 
   /** Deleta projeto e arquivos */
-  delete: protectedProcedure
+  delete: authorizedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await assertProjectOwner(input.id, ctx.user.id);
@@ -192,7 +199,7 @@ const videosRouter = router({
 // ─── Scenes Router ─────────────────────────────────────────────────────────────
 const scenesRouter = router({
   /** Atualiza prompt ou texto de uma cena — registra evento adaptativo */
-  update: protectedProcedure
+  update: authorizedProcedure
     .input(
       z.object({
         sceneId: z.number(),
@@ -227,7 +234,7 @@ const scenesRouter = router({
     }),
 
   /** Regenera a ilustração de uma cena — registra evento adaptativo */
-  regenerateImage: protectedProcedure
+  regenerateImage: authorizedProcedure
     .input(z.object({ sceneId: z.number(), projectId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await assertProjectOwner(input.projectId, ctx.user.id);
@@ -277,7 +284,7 @@ const scenesRouter = router({
     }),
 
   /** Feedback de estilo (👍/👎) em uma ilustração */
-  submitFeedback: protectedProcedure
+  submitFeedback: authorizedProcedure
     .input(
       z.object({
         sceneId: z.number(),
@@ -287,141 +294,99 @@ const scenesRouter = router({
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const project = await assertProjectOwner(input.projectId, ctx.user.id);
+      await assertProjectOwner(input.projectId, ctx.user.id);
       const scene = await getSceneById(input.sceneId);
+      if (!scene) throw new TRPCError({ code: "NOT_FOUND", message: "Cena não encontrada" });
 
       await logStyleFeedback({
         userId: ctx.user.id,
-        sceneId: input.sceneId,
         projectId: input.projectId,
+        sceneId: input.sceneId,
         sentiment: input.sentiment,
-        illustrationPrompt: scene?.illustrationPrompt ?? undefined,
-        illustrationUrl: scene?.illustrationUrl ?? undefined,
+        illustrationPrompt: scene.illustrationPrompt ?? undefined,
+        illustrationUrl: scene.illustrationUrl ?? undefined,
         comment: input.comment,
       });
 
-      return { recorded: true };
+      return { success: true };
     }),
 
-  /** Reordena cenas via drag-and-drop */
-  reorder: protectedProcedure
+  /** Reordena cenas de um projeto */
+  reorder: authorizedProcedure
     .input(
       z.object({
         projectId: z.number(),
-        order: z.array(z.object({ id: z.number(), sceneOrder: z.number() })),
+        updates: z.array(z.object({ id: z.number(), sceneOrder: z.number() })),
       })
     )
     .mutation(async ({ input, ctx }) => {
       await assertProjectOwner(input.projectId, ctx.user.id);
-      await reorderScenes(input.order);
-      await logEditEvent({
-        userId: ctx.user.id,
-        projectId: input.projectId,
-        eventType: "prompt_edited",
-        metadata: { action: "reorder_scenes", count: input.order.length },
-      });
-      return { reordered: true };
-    }),
-
-  /** Exporta cenas em JSON compatível com Remotion — registra aceitação */
-  exportJson: protectedProcedure
-    .input(z.object({ projectId: z.number() }))
-    .query(async ({ input, ctx }) => {
-      const project = await assertProjectOwner(input.projectId, ctx.user.id);
-      const scenes = await getScenesByProject(input.projectId);
-
-      // Log that user accepted/exported all scenes (positive signal for adaptive learning)
-      await logEditEvent({
-        userId: ctx.user.id,
-        projectId: input.projectId,
-        eventType: "image_accepted",
-        metadata: { action: "export_json", scenesCount: scenes.length },
-      });
-
-      return {
-        project: {
-          id: project.id,
-          title: project.title,
-          durationSeconds: project.durationSeconds,
-          originalVideoUrl: project.originalVideoUrl,
-        },
-        scenes: scenes.map((scene) => ({
-          id: scene.id,
-          order: scene.sceneOrder,
-          startTime: scene.startTime,
-          endTime: scene.endTime,
-          duration: scene.endTime - scene.startTime,
-          transcript: scene.transcript,
-          illustrationPrompt: scene.illustrationPrompt,
-          illustrationUrl: scene.illustrationUrl,
-        })),
-        remotionConfig: {
-          fps: 30,
-          width: 1080,
-          height: 1920,
-          durationInFrames: Math.round((project.durationSeconds ?? 60) * 30),
-        },
-      };
+      await reorderScenes(input.updates);
+      return { success: true };
     }),
 });
 
-// ─── Adaptive Style Router ─────────────────────────────────────────────────────
+// ─── Adaptive Router ───────────────────────────────────────────────────────────
 const adaptiveRouter = router({
-  /** Retorna o perfil de estilo aprendido do usuário */
-  getProfile: protectedProcedure.query(async ({ ctx }) => {
-    const profile = await getFullStyleProfile(ctx.user.id);
-    const styleCtx = await getStyleContext(ctx.user.id);
-    return {
-      profile,
-      context: styleCtx,
-      hasProfile: profile !== null,
-    };
+  /** Retorna o perfil de estilo completo do usuário */
+  getProfile: authorizedProcedure.query(async ({ ctx }) => {
+    return getFullStyleProfile(ctx.user.id);
   }),
 
-  /** Histórico de edições do usuário */
-  getEditHistory: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(100).default(30) }))
+  /** Retorna eventos de edição recentes */
+  getHistory: authorizedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }))
     .query(async ({ input, ctx }) => {
       return getRecentEditEvents(ctx.user.id, input.limit);
     }),
 
-  /** Dispara manualmente a análise e atualização do perfil */
-  refreshProfile: protectedProcedure.mutation(async ({ ctx }) => {
-    // Run analysis asynchronously
-    analyzeAndUpdateProfile(ctx.user.id).catch((err) => {
-      console.error(`[Router] Profile analysis failed for user ${ctx.user.id}:`, err);
-    });
-    return { started: true, message: "Análise do perfil iniciada. Isso pode levar alguns segundos." };
-  }),
-
-  /** Retorna o contexto de estilo atual (para debug/preview) */
-  getStyleContext: protectedProcedure.query(async ({ ctx }) => {
-    return getStyleContext(ctx.user.id);
+  /** Força uma re-análise do perfil de estilo (Admin ou debug) */
+  triggerAnalysis: authorizedProcedure.mutation(async ({ ctx }) => {
+    await analyzeAndUpdateProfile(ctx.user.id);
+    return { success: true };
   }),
 });
 
-// ─── Admin Router ─────────────────────────────────────────────────────────────
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== "admin")
-    throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito a administradores" });
-  return next({ ctx });
-});
-
+// ─── Admin Router ──────────────────────────────────────────────────────────────
 const adminRouter = router({
-  getStats: adminProcedure.query(async () => getAdminStats()),
-  getUsers: adminProcedure.query(async () => getAllUsersAdmin()),
-  getProjects: adminProcedure.query(async () => getAllProjectsAdmin()),
-  getProcessingsByDay: adminProcedure
-    .input(z.object({ days: z.number().min(1).max(90).default(14) }))
-    .query(async ({ input }) => getProcessingsByDay(input.days)),
+  /** Estatísticas gerais da plataforma */
+  getStats: authorizedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin")
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+    return getAdminStats();
+  }),
+
+  /** Lista todos os usuários */
+  listUsers: authorizedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin")
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+    return getAllUsersAdmin();
+  }),
+
+  /** Lista projetos recentes de todos os usuários */
+  listAllProjects: authorizedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin")
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+    return getAllProjectsAdmin();
+  }),
+
+  /** Dados para gráfico de processamento por dia */
+  getChartData: authorizedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin")
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+    return getProcessingsByDay();
+  }),
 });
-// ─── Niche Templates Router ────────────────────────────────────────────────────────────────────────────
+
+// ─── Niche Router ──────────────────────────────────────────────────────────────
 const nicheRouter = router({
   /** Lista todos os templates de nicho disponíveis */
-  list: publicProcedure.query(() => NICHE_TEMPLATES),
+  listTemplates: authorizedProcedure.query(() => {
+    return NICHE_TEMPLATES;
+  }),
 
-  /** Retorna um template específico por ID */
-  getById: publicProcedure
+  /** Busca template por ID */
+  getTemplate: authorizedProcedure
     .input(z.object({ id: z.string() }))
     .query(({ input }) => {
       const template = getNicheTemplateById(input.id);
@@ -430,74 +395,45 @@ const nicheRouter = router({
     }),
 });
 
-// ─── YouTube Router ────────────────────────────────────────────────────────────────────────────
+// ─── YouTube Router ────────────────────────────────────────────────────────────
 const youtubeRouter = router({
-  /** Valida e extrai metadados de uma URL do YouTube (respeitando limite do plano) */
-  getInfo: protectedProcedure
+  /** Valida URL e busca informações básicas do vídeo */
+  getInfo: authorizedProcedure
     .input(z.object({ url: z.string().url() }))
-    .mutation(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       if (!isValidYouTubeUrl(input.url)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "URL do YouTube inválida. Use o formato: https://www.youtube.com/watch?v=... ou https://youtu.be/..." });
+        throw new TRPCError({ code: "BAD_REQUEST", message: "URL do YouTube inválida" });
       }
       try {
-        const info = await getYouTubeVideoInfo(input.url);
-        // Check plan limit
-        const user = await getUserById(ctx.user.id);
-        const plan = (user?.plan ?? "free") as "free" | "pro" | "enterprise";
-        const limitSeconds = PLAN_YOUTUBE_LIMITS[plan];
-        const exceedsLimit = info.duration > limitSeconds;
-        return {
-          videoId: info.videoId,
-          title: info.title,
-          durationSeconds: info.duration,
-          thumbnailUrl: info.thumbnailUrl,
-          youtubeUrl: input.url,
-          valid: true,
-          exceedsLimit,
-          limitSeconds,
-          limitMinutes: Math.floor(limitSeconds / 60),
-          plan,
-        };
+        return await getYouTubeVideoInfo(input.url);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Erro desconhecido";
-        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao buscar vídeo" });
       }
     }),
 
-  /** Cria projeto a partir de URL do YouTube e extrai áudio automaticamente */
-  createProject: protectedProcedure
+  /** Cria projeto a partir de vídeo do YouTube */
+  createFromUrl: authorizedProcedure
     .input(
       z.object({
         youtubeUrl: z.string().url(),
-        title: z.string().min(1).max(255),
+        title: z.string().optional(),
         description: z.string().max(1000).optional(),
         visualStyle: z.string().optional().default("auto"),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      if (!isValidYouTubeUrl(input.youtubeUrl)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "URL do YouTube inválida" });
-      }
-
-      // Check plan limit before extracting audio
       const user = await getUserById(ctx.user.id);
       const plan = (user?.plan ?? "free") as "free" | "pro" | "enterprise";
-      const limitSeconds = PLAN_YOUTUBE_LIMITS[plan];
 
-      // Get video info first to check duration
-      let videoInfo;
-      try {
-        videoInfo = await getYouTubeVideoInfo(input.youtubeUrl);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Erro ao obter informações do vídeo";
-        throw new TRPCError({ code: "BAD_REQUEST", message: msg });
-      }
+      // Check video duration against plan limits
+      const info = await getYouTubeVideoInfo(input.youtubeUrl);
+      const limit = PLAN_YOUTUBE_LIMITS[plan];
 
-      if (videoInfo.duration > limitSeconds) {
-        const limitMin = Math.floor(limitSeconds / 60);
-        const durationMin = Math.floor(videoInfo.duration / 60);
+      if (info.duration > limit) {
+        const durationMin = Math.ceil(info.duration / 60);
+        const limitMin = Math.floor(limit / 60);
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: "FORBIDDEN",
           message: `Vídeo muito longo (${durationMin}min). Seu plano ${PLAN_LABELS[plan]} permite até ${limitMin} minutos. Faça upgrade para processar vídeos mais longos.`,
         });
       }
@@ -533,7 +469,7 @@ const youtubeRouter = router({
 // ─── Versions Router ────────────────────────────────────────────────────────────────────────────
 const versionsRouter = router({
   /** Lista todas as versões de um projeto */
-  list: protectedProcedure
+  list: authorizedProcedure
     .input(z.object({ projectId: z.number() }))
     .query(async ({ input, ctx }) => {
       await assertProjectOwner(input.projectId, ctx.user.id);
@@ -541,7 +477,7 @@ const versionsRouter = router({
     }),
 
   /** Salva snapshot da versão atual como histórico */
-  saveSnapshot: protectedProcedure
+  saveSnapshot: authorizedProcedure
     .input(
       z.object({
         projectId: z.number(),
@@ -573,7 +509,7 @@ const versionsRouter = router({
     }),
 
   /** Define uma versão como ativa */
-  setActive: protectedProcedure
+  setActive: authorizedProcedure
     .input(z.object({ projectId: z.number(), versionId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await assertProjectOwner(input.projectId, ctx.user.id);
@@ -582,7 +518,7 @@ const versionsRouter = router({
     }),
 
   /** Restaura cenas de uma versão anterior */
-  restore: protectedProcedure
+  restore: authorizedProcedure
     .input(z.object({ projectId: z.number(), versionId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await assertProjectOwner(input.projectId, ctx.user.id);
@@ -621,7 +557,7 @@ const versionsRouter = router({
     }),
 
   /** Inicia reprocessamento do projeto com novas configurações */
-  reprocess: protectedProcedure
+  reprocess: authorizedProcedure
     .input(
       z.object({
         projectId: z.number(),
@@ -680,20 +616,20 @@ const versionsRouter = router({
 // ─── Notifications Router ────────────────────────────────────────────────────────────────────────────
 const notificationsRouter = router({
   /** Lista notificações do usuário autenticado */
-  list: protectedProcedure
+  list: authorizedProcedure
     .input(z.object({ limit: z.number().min(1).max(50).optional() }))
     .query(async ({ input, ctx }) => {
       return getUserNotifications(ctx.user.id, input.limit ?? 20);
     }),
 
   /** Conta notificações não lidas */
-  countUnread: protectedProcedure.query(async ({ ctx }) => {
+  countUnread: authorizedProcedure.query(async ({ ctx }) => {
     const count = await countUnreadNotifications(ctx.user.id);
     return { count };
   }),
 
   /** Marca uma notificação como lida */
-  markRead: protectedProcedure
+  markRead: authorizedProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       await markNotificationRead(input.id, ctx.user.id);
@@ -701,7 +637,7 @@ const notificationsRouter = router({
     }),
 
   /** Marca todas as notificações como lidas */
-  markAllRead: protectedProcedure.mutation(async ({ ctx }) => {
+  markAllRead: authorizedProcedure.mutation(async ({ ctx }) => {
     await markAllNotificationsRead(ctx.user.id);
     return { success: true };
   }),
@@ -723,7 +659,7 @@ export const PLAN_LABELS: Record<"free" | "pro" | "enterprise", string> = {
 // ─── Plan Router ────────────────────────────────────────────────────────────────────────────
 const planRouter = router({
   /** Retorna o plano atual do usuário autenticado */
-  getCurrent: protectedProcedure.query(async ({ ctx }) => {
+  getCurrent: authorizedProcedure.query(async ({ ctx }) => {
     const user = await getUserById(ctx.user.id);
     const plan = (user?.plan ?? "free") as "free" | "pro" | "enterprise";
     return {
@@ -751,6 +687,79 @@ const planRouter = router({
     }),
 });
 
+// ─── Invites Router ────────────────────────────────────────────────────────────
+const invitesRouter = router({
+  /** Gera um novo token de convite (Apenas Admin) */
+  create: protectedProcedure
+    .input(z.object({ maxUses: z.number().min(1).default(1) }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Apenas administradores podem gerar convites" });
+      }
+      const token = `kolhey-inv-${nanoid(10)}`;
+      await createInvite({
+        token,
+        createdBy: ctx.user.id,
+        maxUses: input.maxUses,
+      });
+      return { token };
+    }),
+
+  /** Valida um token e autoriza o usuário logado permanentemente */
+  redeem: protectedProcedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const invite = await getInviteByToken(input.token);
+      if (!invite) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Convite inválido" });
+      }
+      if (invite.usesCount >= invite.maxUses) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Este convite já atingiu o limite de usos" });
+      }
+      if (invite.expiresAt && invite.expiresAt < new Date()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Este convite expirou" });
+      }
+
+      // Autorizar o usuário permanentemente
+      await authorizeUser({
+        email: ctx.user.email!,
+        invitedBy: invite.createdBy,
+        inviteId: invite.id,
+      });
+
+      // Incrementar uso do convite
+      await incrementInviteUses(invite.id);
+
+      return { success: true };
+    }),
+
+  /** Lista todos os usuários autorizados (Apenas Admin) */
+  listAuthorized: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+    }
+    return getAllAuthorizedUsers();
+  }),
+
+  /** Revoga acesso de um usuário (Apenas Admin) */
+  revoke: protectedProcedure
+    .input(z.object({ email: z.string().email() }))
+    .mutation(async ({ input, ctx }) => {
+      if (ctx.user.role !== "admin") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
+      await revokeUserAuthorization(input.email);
+      return { success: true };
+    }),
+
+  /** Verifica se o usuário atual está autorizado */
+  checkStatus: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user.role === "admin") return { authorized: true };
+    const authorized = await isUserAuthorized(ctx.user.email!);
+    return { authorized };
+  }),
+});
+
 // ─── App Router ────────────────────────────────────────────────────────────────────────────
 export const appRouter = router({
   system: systemRouter,
@@ -771,6 +780,7 @@ export const appRouter = router({
   versions: versionsRouter,
   plan: planRouter,
   notifications: notificationsRouter,
+  invites: invitesRouter,
 });
 
 export type AppRouter = typeof appRouter;

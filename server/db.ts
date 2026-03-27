@@ -13,6 +13,10 @@ import {
   VideoScene,
   projectVersions,
   InsertProjectVersion,
+  invites,
+  authorizedUsers,
+  InsertInvite,
+  InsertAuthorizedUser,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -367,4 +371,55 @@ export async function countProjectVersions(projectId: number): Promise<number> {
     .from(projectVersions)
     .where(eq(projectVersions.projectId, projectId));
   return row?.count ?? 0;
+}
+
+// ─── Invites & Authorized Users ────────────────────────────────────────────────
+
+export async function createInvite(data: InsertInvite) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(invites).values(data);
+  return result;
+}
+
+export async function getInviteByToken(token: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(invites).where(eq(invites.token, token)).limit(1);
+  return result[0];
+}
+
+export async function incrementInviteUses(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(invites).set({ usesCount: sql`${invites.usesCount} + 1` }).where(eq(invites.id, id));
+}
+
+export async function authorizeUser(data: InsertAuthorizedUser) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(authorizedUsers).values(data).onDuplicateKeyUpdate({ set: { status: "active" } });
+}
+
+export async function isUserAuthorized(email: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db
+    .select()
+    .from(authorizedUsers)
+    .where(and(eq(authorizedUsers.email, email), eq(authorizedUsers.status, "active")))
+    .limit(1);
+  return result.length > 0;
+}
+
+export async function getAllAuthorizedUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(authorizedUsers).orderBy(desc(authorizedUsers.createdAt));
+}
+
+export async function revokeUserAuthorization(email: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(authorizedUsers).set({ status: "revoked" }).where(eq(authorizedUsers.email, email));
 }

@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { storagePut } from "../storage";
+import path from "path";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +37,9 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // Servir arquivos locais da pasta /uploads
+  app.use("/api/files", express.static(path.join(process.cwd(), "uploads")));
 
   // ── Rota de upload de vídeo (recebe binário e salva no S3) ──────────────────
   const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB

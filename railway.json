@@ -1,0 +1,17 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "node dist/index.js",
+    "restartPolicyType": "ON_FAILURE",
+    "volumes": [
+      {
+        "mountPath": "/app/uploads",
+        "name": "kolhey-uploads"
+      }
+    ]
+  }
+}

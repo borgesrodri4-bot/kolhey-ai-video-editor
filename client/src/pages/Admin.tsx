@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { AdminInvitesManager } from "@/components/AdminInvitesManager";
 import { useLocation } from "wouter";
 import { getLoginUrl } from "@/const";
 import { KolheyWordmark } from "@/components/KolheyLogo";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, Users, Film, CheckCircle2, XCircle, Loader2,
-  ShieldCheck, TrendingUp, BarChart3, Clock,
+  ShieldCheck, TrendingUp, BarChart3, Clock, Key,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -193,6 +194,14 @@ export default function Admin() {
               </table>
             </div>
           )}
+        </div>
+
+        {/* Invites & Access Control */}
+        <div className="space-y-4">
+          <h3 className="font-semibold mb-4 flex items-center gap-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+            <Key className="w-4 h-4 text-primary" /> Controle de Acesso e Convites
+          </h3>
+          <AdminInvitesManager />
         </div>
 
         {/* Users */}

@@ -11,10 +11,12 @@ import {
   ArrowLeft, Loader2, Play, RefreshCw, Download, Edit3, Check, X,
   ImageIcon, Clock, CheckCircle2, XCircle, AlertCircle, ChevronRight,
   Film, ThumbsUp, ThumbsDown, GripVertical, Copy, ExternalLink, Code2,
-  History,
+  History, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { KolheyWordmark } from "@/components/KolheyLogo";
+import { RemotionPlayer } from "@/components/RemotionPlayer";
+import { Input } from "@/components/ui/input";
 import {
   DndContext,
   closestCenter,
@@ -42,6 +44,9 @@ type Scene = {
   illustrationPrompt: string | null;
   illustrationUrl: string | null;
   illustrationStatus: "pending" | "generating" | "completed" | "failed";
+  legenda_index_inicio?: number;
+  componente?: string;
+  paleta_cores?: string[];
 };
 
 type Project = {
@@ -54,6 +59,7 @@ type Project = {
   scenesCount: number;
   durationSeconds: number | null;
   originalVideoUrl: string | null;
+  visualStyle?: string;
   scenes: Scene[];
 };
 
@@ -124,7 +130,6 @@ function SceneCard({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/20">
           <div className="flex items-center gap-3">
-            {/* Drag handle */}
             <button
               {...dragHandleProps}
               className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors touch-none"
@@ -159,7 +164,6 @@ function SceneCard({
                 <Loader2 className="w-3 h-3 animate-spin" /> Gerando...
               </span>
             )}
-            {/* Feedback buttons */}
             {scene.illustrationStatus === "completed" && (
               <div className="flex items-center gap-1 ml-2 border-l border-border pl-2">
                 <Button
@@ -186,7 +190,6 @@ function SceneCard({
         </div>
 
         <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Left: transcript + prompt */}
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -241,14 +244,13 @@ function SceneCard({
                   className="text-sm min-h-[80px] bg-muted/30 border-border resize-none font-mono"
                   placeholder="Descreva a ilustração em inglês..." />
               ) : (
-                <p className="text-xs text-muted-foreground leading-relaxed bg-muted/20 rounded-lg p-3 font-mono">
-                  {scene.illustrationPrompt ?? "Sem prompt definido"}
+                <p className="text-xs text-muted-foreground font-mono bg-muted/20 rounded-lg p-3 italic">
+                  {scene.illustrationPrompt || "Nenhum prompt gerado"}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Right: illustration */}
           <div className="flex flex-col">
             <div
               className="flex-1 rounded-lg overflow-hidden bg-muted/20 border border-border min-h-[180px] flex items-center justify-center relative cursor-pointer group"
@@ -283,7 +285,6 @@ function SceneCard({
         </div>
       </div>
 
-      {/* Image preview modal */}
       <Dialog open={imageModalOpen} onOpenChange={setImageModalOpen}>
         <DialogContent className="max-w-3xl bg-card border-border">
           <DialogHeader>
@@ -383,6 +384,7 @@ export default function ProjectDetail() {
   const projectId = parseInt(params.id ?? "0");
   const [exportOpen, setExportOpen] = useState(false);
   const [localScenes, setLocalScenes] = useState<Scene[] | null>(null);
+  const [refinementPrompt, setRefinementPrompt] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -401,7 +403,6 @@ export default function ProjectDetail() {
     }
   );
 
-  // Sync local scenes when data first arrives
   useEffect(() => {
     if (data && localScenes === null) {
       setLocalScenes((data as Project).scenes);
@@ -423,6 +424,11 @@ export default function ProjectDetail() {
       refetch();
     },
     onError: (err) => toast.error("Erro: " + err.message),
+  });
+
+  const reprocessMutation = trpc.versions.reprocess.useMutation({
+    onSuccess: () => { toast.success("Refinamento iniciado!"); refetch(); },
+    onError: () => toast.error("Erro ao iniciar refinamento"),
   });
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
@@ -485,9 +491,22 @@ export default function ProjectDetail() {
     processing: "Processando", completed: "Concluído", failed: "Falhou",
   };
 
+  const remotionScenes = scenes.map((s: any) => ({
+    index: s.legenda_index_inicio || 0,
+    type: s.componente || 'impacto',
+    content: s.transcript || '',
+    colors: s.paleta_cores || ['#E84B1A', '#0D1B2E'],
+  }));
+
+  const remotionCaptions = scenes.map((s: any, i: number) => ({
+    index: i,
+    text: s.transcript || '',
+    startMs: (s.startTime || 0) * 1000,
+    endMs: (s.endTime || 0) * 1000,
+  }));
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
@@ -508,149 +527,131 @@ export default function ProjectDetail() {
             </Badge>
 
             {isPending && (
-              <Button size="sm" onClick={() => startProcessingMutation.mutate({ id: projectId })}
-                disabled={startProcessingMutation.isPending}>
-                {startProcessingMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-                Iniciar Processamento
+              <Button size="sm" onClick={() => startProcessingMutation.mutate({ id: projectId })} disabled={startProcessingMutation.isPending}>
+                {startProcessingMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                Processar
               </Button>
             )}
 
-            {isCompleted && scenes.length > 0 && (
-              <Button size="sm" variant="outline" className="bg-transparent" onClick={() => setExportOpen(true)}>
-                <Download className="w-4 h-4 mr-2" /> Exportar JSON
+            {isCompleted && (
+              <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
+                <Download className="w-4 h-4 mr-2" /> Exportar
               </Button>
             )}
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="bg-transparent"
-              onClick={() => navigate(`/projects/${projectId}/versions`)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/projects/${projectId}/versions`)}>
               <History className="w-4 h-4 mr-2" /> Versões
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="container py-8">
-        {/* Video player */}
-        {project.originalVideoUrl && (
-          <div className="mb-8 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border bg-muted/20 flex items-center gap-2">
-              <Film className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">Vídeo Original</span>
-            </div>
-            <div className="p-4">
-              <video
-                src={project.originalVideoUrl}
-                controls
-                className="w-full max-h-64 rounded-lg bg-black"
-                preload="metadata"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Processing status */}
-        {isProcessing && (
-          <div className="mb-8 p-5 rounded-xl border border-blue-400/20 bg-blue-400/5">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                <span className="font-medium text-blue-400">Processando com IA...</span>
+      <main className="container py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-5 space-y-6">
+            <div className="sticky top-24 space-y-6">
+              <div className="space-y-4">
+                <RemotionPlayer 
+                  videoUrl={project.originalVideoUrl || ''}
+                  scenes={remotionScenes}
+                  captions={remotionCaptions}
+                  visualStyle={project.visualStyle || 'auto'}
+                />
+                
+                <div className="flex gap-2 p-4 bg-muted/20 rounded-xl border border-border">
+                  <Input 
+                    placeholder="Ex: Troque a cena 3 por um comparativo..." 
+                    className="bg-background border-border"
+                    value={refinementPrompt}
+                    onChange={(e) => setRefinementPrompt(e.target.value)}
+                  />
+                  <Button 
+                    className="bg-primary hover:bg-primary/90"
+                    onClick={() => {
+                      if (!refinementPrompt) return;
+                      reprocessMutation.mutate({ 
+                        projectId, 
+                        description: refinementPrompt,
+                        label: `Refinamento: ${refinementPrompt.slice(0, 20)}...`
+                      });
+                      setRefinementPrompt("");
+                    }}
+                    disabled={reprocessMutation.isPending}
+                  >
+                    {reprocessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                    Refinar
+                  </Button>
+                </div>
               </div>
-              <span className="text-sm font-mono text-blue-400">{project.progress}%</span>
+
+              <Card className="bg-card border-border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-primary" /> Informações do Projeto
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground uppercase">Duração</p>
+                      <p className="text-sm font-medium">{project.durationSeconds ? formatTime(project.durationSeconds) : "--:--"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground uppercase">Cenas</p>
+                      <p className="text-sm font-medium">{project.scenesCount}</p>
+                    </div>
+                  </div>
+                  {isProcessing && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">{project.currentStep || "Processando..."}</span>
+                        <span className="font-medium">{project.progress}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                        <div className="h-full bg-primary transition-all duration-500" style={{ width: `${project.progress}%` }} />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
-              <div className="h-full bg-blue-400 rounded-full transition-all duration-500" style={{ width: `${project.progress}%` }} />
-            </div>
-            <p className="text-sm text-muted-foreground">{project.currentStep ?? "Processando..."}</p>
           </div>
-        )}
 
-        {/* Error */}
-        {isFailed && (
-          <div className="mb-8 p-5 rounded-xl border border-red-400/20 bg-red-400/5 flex items-start gap-3">
-            <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-medium text-red-400 mb-1">Processamento falhou</p>
-              <p className="text-sm text-muted-foreground">{project.errorMessage ?? "Erro desconhecido"}</p>
-              <Button size="sm" className="mt-3" onClick={() => startProcessingMutation.mutate({ id: projectId })}>
-                <RefreshCw className="w-4 h-4 mr-2" /> Tentar novamente
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: "Cenas", value: project.scenesCount || "—" },
-            { label: "Duração", value: project.durationSeconds ? `${Math.round(project.durationSeconds)}s` : "—" },
-            { label: "Status", value: statusLabels[project.status] },
-            { label: "Progresso", value: `${project.progress}%` },
-          ].map((stat, i) => (
-            <div key={i} className="p-4 rounded-xl border border-border bg-card text-center">
-              <p className="text-2xl font-bold mb-1">{stat.value}</p>
-              <p className="text-xs text-muted-foreground">{stat.label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* Scenes with drag-and-drop */}
-        {scenes.length > 0 ? (
-          <div>
-            <div className="flex items-center justify-between mb-4">
+          <div className="lg:col-span-7 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold flex items-center gap-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+                <Film className="w-5 h-5 text-primary" /> Timeline de Cenas
+              </h3>
               <div className="flex items-center gap-2">
-                <Film className="w-4 h-4 text-primary" />
-                <h2 className="font-semibold text-lg" style={{ fontFamily: "'Playfair Display', serif" }}>
-                  Timeline de Cenas ({scenes.length})
-                </h2>
+                <Badge variant="outline" className="text-[10px] font-normal">
+                  {scenes.length} cenas geradas
+                </Badge>
               </div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <GripVertical className="w-3 h-3" /> Arraste para reordenar
-              </p>
             </div>
 
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={scenes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-4">
-                  {scenes.map((scene, i) => (
-                    <SortableSceneCard
-                      key={scene.id}
-                      scene={scene}
-                      projectId={projectId}
-                      onUpdated={refetch}
-                      index={i}
-                    />
+                  {scenes.map((scene, index) => (
+                    <SortableSceneCard key={scene.id} scene={scene} projectId={projectId} onUpdated={refetch} index={index} />
                   ))}
                 </div>
               </SortableContext>
             </DndContext>
-          </div>
-        ) : isPending ? (
-          <div className="text-center py-20">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Play className="w-8 h-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">Pronto para processar</h3>
-            <p className="text-muted-foreground text-sm mb-6">
-              Clique em "Iniciar Processamento" para que a IA transcreva e gere as cenas
-            </p>
-            <Button onClick={() => startProcessingMutation.mutate({ id: projectId })}>
-              <Play className="w-4 h-4 mr-2" /> Iniciar Processamento
-            </Button>
-          </div>
-        ) : isProcessing ? (
-          <div className="text-center py-20">
-            <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-            <p className="text-muted-foreground">As cenas aparecerão aqui conforme forem geradas...</p>
-          </div>
-        ) : null}
-      </div>
 
-      {/* Export Modal */}
+            {scenes.length === 0 && !isProcessing && (
+              <div className="text-center py-20 bg-muted/10 rounded-2xl border border-dashed border-border">
+                <Film className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
+                <p className="text-muted-foreground">Nenhuma cena gerada ainda.</p>
+                <Button variant="link" onClick={() => startProcessingMutation.mutate({ id: projectId })}>
+                  Iniciar processamento agora
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
       <ExportModal projectId={projectId} open={exportOpen} onClose={() => setExportOpen(false)} />
     </div>
   );

@@ -99,26 +99,35 @@ async function analyzeAndGenerateScenes(
     : "";
 
   const systemPrompt = `Você é um diretor de arte e editor de vídeo especialista em conteúdo digital.
-Sua tarefa é analisar a transcrição de um vídeo (com timestamps em segundos) e agrupá-la em cenas lógicas.
-Para cada cena, crie um prompt de imagem altamente descritivo em inglês para gerar uma ilustração flat design.
+Sua tarefa é analisar a transcrição de um vídeo (lista de legendas numeradas) e agrupá-la em cenas lógicas.
 
-Regras:
-- Agrupe segmentos relacionados em cenas de 5 a 30 segundos
-- O prompt deve descrever visualmente o conceito falado, não o texto literal
-- Use estilo: flat design, cores vibrantes, moderno, minimalista
-- Retorne APENAS JSON válido, sem markdown ou texto extra${adaptiveInstructions}${descriptionContext}
+REGRAS DE OURO DE SINCRONIZAÇÃO:
+1. NÃO tente calcular o tempo em segundos (ex: 2.3s). 
+2. Use APENAS o "index" da legenda para marcar o início de cada cena.
+3. Categorize o vídeo em 1 de 7 formatos: comparação, revelação, sequência, autoridade direta, demonstração, tutorial, storytelling.
+4. Escolha 1 de 11 componentes de cena: impacto, whatsapp, comparativo, numero_animado, rosto_ilustracao, lista, grafico, mapa, codigo, depoimento, call_to_action.
 
-Formato de saída:
+DIRETRIZES VISUAIS:
+- Crie prompts de imagem altamente descritivos em inglês para ilustrações flat design.
+- O prompt deve descrever visualmente o conceito falado, não o texto literal.
+- Use estilo: flat design, cores vibrantes, moderno, minimalista.
+- Defina uma paleta de cores baseada no tema.${adaptiveInstructions}${descriptionContext}
+
+Formato de saída (JSON estrito):
 [
   {
-    "tempo_inicio": 0.0,
-    "tempo_fim": 8.5,
-    "texto_falado": "texto original da cena",
-    "prompt_ilustracao": "Detailed flat design illustration of... vibrant colors, modern style"
+    "legenda_index_inicio": 0,
+    "formato": "comparação",
+    "componente": "comparativo",
+    "texto_falado": "texto original agrupado da cena",
+    "prompt_ilustracao": "Detailed flat design illustration of... vibrant colors, modern style",
+    "paleta_cores": ["#HEX1", "#HEX2"]
   }
 ]`;
 
-  const userMessage = `Transcrição do vídeo:\n${JSON.stringify(segments, null, 2)}`;
+  // Enviar apenas os textos e índices para a IA, sem os tempos originais para evitar confusão
+  const simplifiedSegments = segments.map((s, i) => ({ index: i, text: s.text }));
+  const userMessage = `Lista de legendas numeradas:\n${JSON.stringify(simplifiedSegments, null, 2)}`;
 
   const response = await withRetry(() =>
     invokeLLM({
@@ -136,12 +145,14 @@ Formato de saída:
             items: {
               type: "object",
               properties: {
-                tempo_inicio: { type: "number" },
-                tempo_fim: { type: "number" },
+                legenda_index_inicio: { type: "number" },
+                formato: { type: "string" },
+                componente: { type: "string" },
                 texto_falado: { type: "string" },
                 prompt_ilustracao: { type: "string" },
+                paleta_cores: { type: "array", items: { type: "string" } },
               },
-              required: ["tempo_inicio", "tempo_fim", "texto_falado", "prompt_ilustracao"],
+              required: ["legenda_index_inicio", "formato", "componente", "texto_falado", "prompt_ilustracao", "paleta_cores"],
               additionalProperties: false,
             },
           },

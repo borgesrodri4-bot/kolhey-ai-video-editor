@@ -393,8 +393,8 @@ describe("plan.getCurrent", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.plan.getCurrent();
     expect(result).toHaveProperty("plan");
-    expect(result).toHaveProperty("youtubeDurationLimitSeconds");
-    expect(result).toHaveProperty("youtubeDurationLimitMinutes");
+    expect(result).toHaveProperty("youtubeLimitSeconds");
+    expect(result).toHaveProperty("youtubeLimitMinutes");
     expect(["free", "pro", "enterprise"]).toContain(result.plan);
   });
 
@@ -403,6 +403,6 @@ describe("plan.getCurrent", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.plan.getCurrent();
     // Default is free
-    expect(result.youtubeDurationLimitMinutes).toBe(15);
+    expect(result.youtubeLimitMinutes).toBe(15);
   });
 });

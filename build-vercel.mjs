@@ -18,8 +18,8 @@ await build({
   platform: "node",
   // NÃO usar packages: "external" - incluir tudo no bundle
   bundle: true,
-  format: "esm",
-  outfile: "api/server.mjs",
+  format: "cjs",
+  outfile: "api/server.cjs",
   define: {
     "process.env.NODE_ENV": '"production"',
   },
@@ -49,4 +49,4 @@ await build({
 });
 
 console.log("✅ Vercel build complete!");
-console.log("📁 Bundle size:", Math.round(fs.statSync("api/server.mjs").size / 1024), "KB");
+console.log("📁 Bundle size:", Math.round(fs.statSync("api/server.cjs").size / 1024), "KB");

@@ -11,7 +11,7 @@ const supabaseKey = process.env.SUPABASE_KEY ?? process.env.SUPABASE_SERVICE_KEY
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 export function registerSupabaseAuthRoutes(app: Express) {
-  // Rota de início do login com Google via Supabase
+  // ─── Login com Google via Supabase OAuth ──────────────────────────────────
   app.get("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const redirectTo = `${req.protocol}://${req.get("host")}/api/auth/callback`;
@@ -28,14 +28,98 @@ export function registerSupabaseAuthRoutes(app: Express) {
 
       if (error || !data?.url) {
         console.error("[Supabase Auth] Error generating OAuth URL:", error);
-        res.status(500).json({ error: "Failed to generate login URL" });
+        res.redirect(302, "/?error=google_not_configured");
         return;
       }
 
       res.redirect(302, data.url);
     } catch (err) {
       console.error("[Supabase Auth] Login error:", err);
-      res.status(500).json({ error: "Login failed" });
+      res.redirect(302, "/?error=login_failed");
+    }
+  });
+
+  // ─── Login por email/senha ────────────────────────────────────────────────
+  app.post("/api/auth/email-login", async (req: Request, res: Response) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      res.status(400).json({ error: "Email e senha são obrigatórios" });
+      return;
+    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error || !data?.user) {
+        res.status(401).json({ error: "Email ou senha incorretos" });
+        return;
+      }
+      const supabaseUser = data.user;
+      const openId = supabaseUser.id;
+      const userEmail = supabaseUser.email ?? null;
+      const name = supabaseUser.user_metadata?.full_name ?? supabaseUser.user_metadata?.name ?? userEmail ?? "Usuário";
+
+      await db.upsertUser({
+        openId,
+        name,
+        email: userEmail,
+        loginMethod: "email",
+        lastSignedIn: new Date(),
+      });
+
+      const sessionToken = await sdk.createSessionToken(openId, {
+        name,
+        expiresInMs: ONE_YEAR_MS,
+      });
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.json({ ok: true, name, email: userEmail });
+    } catch (err) {
+      console.error("[Supabase Auth] Email login error:", err);
+      res.status(500).json({ error: "Falha no login" });
+    }
+  });
+
+  // ─── Cadastro por email/senha ─────────────────────────────────────────────
+  app.post("/api/auth/email-signup", async (req: Request, res: Response) => {
+    const { email, password, name } = req.body;
+    if (!email || !password) {
+      res.status(400).json({ error: "Email e senha são obrigatórios" });
+      return;
+    }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: name ?? email.split("@")[0] },
+        },
+      });
+      if (error || !data?.user) {
+        res.status(400).json({ error: error?.message ?? "Erro ao criar conta" });
+        return;
+      }
+      const supabaseUser = data.user;
+      const openId = supabaseUser.id;
+      const userEmail = supabaseUser.email ?? null;
+      const userName = name ?? supabaseUser.user_metadata?.full_name ?? userEmail ?? "Usuário";
+
+      await db.upsertUser({
+        openId,
+        name: userName,
+        email: userEmail,
+        loginMethod: "email",
+        lastSignedIn: new Date(),
+      });
+
+      const sessionToken = await sdk.createSessionToken(openId, {
+        name: userName,
+        expiresInMs: ONE_YEAR_MS,
+      });
+      const cookieOptions = getSessionCookieOptions(req);
+      res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
+      res.json({ ok: true, name: userName, email: userEmail });
+    } catch (err) {
+      console.error("[Supabase Auth] Email signup error:", err);
+      res.status(500).json({ error: "Falha ao criar conta" });
     }
   });
 

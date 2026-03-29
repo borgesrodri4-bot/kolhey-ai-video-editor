@@ -61,7 +61,7 @@ export default function Home() {
     if (isAuthenticated) {
       navigate("/dashboard");
     } else {
-      window.location.href = getLoginUrl();
+      navigate("/login");
     }
   };
 

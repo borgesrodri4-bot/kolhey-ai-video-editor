@@ -13,6 +13,7 @@ import AdaptiveProfile from "./pages/AdaptiveProfile";
 import ProjectVersions from "./pages/ProjectVersions";
 import { InviteRedeem } from "./pages/InviteRedeem";
 import { AccessDenied } from "./pages/AccessDenied";
+import Login from "./pages/Login";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/adaptive-profile" component={AdaptiveProfile} />
       <Route path="/admin" component={Admin} />
       <Route path="/invite/:token" component={InviteRedeem} />
+      <Route path="/login" component={Login} />
       <Route path="/access-denied" component={AccessDenied} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

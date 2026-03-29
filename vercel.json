@@ -1,11 +1,11 @@
 {
   "version": 2,
-  "buildCommand": "pnpm build",
+  "buildCommand": "node build-vercel.mjs",
   "outputDirectory": "dist/public",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "framework": null,
   "functions": {
-    "api/index.ts": {
+    "api/index.mjs": {
       "maxDuration": 60
     }
   },
@@ -18,8 +18,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }

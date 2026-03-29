@@ -4,17 +4,14 @@
   "outputDirectory": "dist/public",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "framework": null,
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
     {
-      "source": "/trpc/(.*)",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/auth/(.*)",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/uploads/(.*)",
+      "source": "/api/(.*)",
       "destination": "/api/index"
     },
     {
